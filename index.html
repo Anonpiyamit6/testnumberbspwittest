@@ -1036,68 +1036,135 @@ function showInterviewForm(id, maxScore, programName) {
     const s = studentsData.find(x => x.__backendId === id);
     if (!s) return;
 
+    // เตรียมตัวเลข (ถ้าไม่มีให้เป็น 0)
+    const sci = parseFloat(s.science_score) || 0;
+    const math = parseFloat(s.math_score) || 0;
+    const eng = parseFloat(s.english_score) || 0;
     const written = parseFloat(s.total_score) || 0;
     const practical = parseFloat(s.practical_score) || 0;
 
-    // สร้าง HTML ของ Modal ขึ้นมาใหม่ (ใช้ Modal เดิมแต่เปลี่ยนไส้ใน)
     const modalHtml = `
-    <div id="interview-modal" class="fixed inset-0 flex items-center justify-center z-[150] animate-fade-in">
-        <div class="absolute w-full h-full bg-black/50 backdrop-blur-sm" onclick="closeInterviewModal()"></div>
-        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl z-[151] overflow-hidden transform scale-100 transition-all mx-4">
+    <div id="interview-modal" class="fixed inset-0 flex items-center justify-center z-[150] animate-fade-in px-4">
+        <div class="absolute w-full h-full bg-gray-900/60 backdrop-blur-sm transition-opacity" onclick="closeInterviewModal()"></div>
+        <div class="bg-white w-full max-w-lg rounded-[2rem] shadow-2xl z-[151] overflow-hidden transform scale-100 transition-all relative">
             
-            <div class="bg-indigo-600 p-4 text-white flex justify-between items-center">
-                <h3 class="font-bold text-lg">บันทึกคะแนนปฏิบัติ</h3>
-                <button onclick="closeInterviewModal()" class="text-white/80 hover:text-white text-xl font-bold">&times;</button>
+            <div class="bg-gradient-to-r from-lime-400 to-lime-500 p-6 pt-8 pb-10 text-white relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-10 -mt-10"></div>
+                
+                <button onclick="closeInterviewModal()" class="absolute top-4 right-4 text-white/80 hover:text-white bg-black/10 hover:bg-black/20 rounded-full p-1 transition-all">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+
+                <div class="text-center relative z-10">
+                    <div class="inline-block px-3 py-1 bg-white/20 rounded-full text-xs font-bold mb-2 border border-white/30">
+                        โครงการ ${programName}
+                    </div>
+                    <h2 class="text-2xl font-bold mb-1 drop-shadow-md">${s.full_name}</h2>
+                    <p class="text-lime-50 font-medium opacity-90">รหัสสอบ: <span class="font-mono font-bold text-white text-lg">${s.exam_id}</span></p>
+                </div>
             </div>
 
-            <div class="p-6">
-                <div class="text-center mb-6">
-                    <h2 class="text-xl font-bold text-gray-800">${s.full_name}</h2>
-                    <p class="text-indigo-600 font-bold mt-1">โครงการ ${programName}</p>
-                    <p class="text-gray-400 text-sm mt-1">รหัสสอบ: ${s.exam_id}</p>
+            <div class="p-6 -mt-6 bg-white rounded-t-[2rem] relative z-20">
+                
+                <div class="mb-2 text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">ผลคะแนนข้อเขียน</div>
+                <div class="grid grid-cols-3 gap-3 mb-4">
+                    <div class="bg-blue-50 p-3 rounded-xl text-center border border-blue-100">
+                        <div class="text-xs text-blue-400 font-bold mb-1">วิทยาศาสตร์</div>
+                        <div class="text-xl font-black text-blue-600">${sci}</div>
+                    </div>
+                    <div class="bg-red-50 p-3 rounded-xl text-center border border-red-100">
+                        <div class="text-xs text-red-400 font-bold mb-1">คณิตศาสตร์</div>
+                        <div class="text-xl font-black text-red-600">${math}</div>
+                    </div>
+                    <div class="bg-purple-50 p-3 rounded-xl text-center border border-purple-100">
+                        <div class="text-xs text-purple-400 font-bold mb-1">ภาษาอังกฤษ</div>
+                        <div class="text-xl font-black text-purple-600">${eng}</div>
+                    </div>
                 </div>
 
-                <div class="bg-gray-50 rounded-xl p-4 border border-gray-100 mb-6">
-                    <div class="flex justify-between mb-2 text-sm text-gray-600">
-                        <span>คะแนนข้อเขียน:</span>
-                        <span class="font-bold">${written.toFixed(2)}</span>
-                    </div>
-                    <div class="flex justify-between mb-2 text-sm text-gray-600">
-                        <span>คะแนนปฏิบัติเดิม:</span>
-                        <span class="font-bold">${practical.toFixed(2)}</span>
-                    </div>
-                    <div class="border-t border-gray-200 my-2"></div>
-                    <div class="flex justify-between items-center">
-                        <label class="font-bold text-gray-700">คะแนนปฏิบัติใหม่:</label>
-                        <span class="text-xs text-gray-400">(เต็ม ${maxScore})</span>
-                    </div>
+                <div class="bg-gray-50 rounded-xl p-4 border border-gray-200 flex justify-between items-center mb-6 shadow-inner">
+                    <span class="text-sm font-bold text-gray-500">คะแนนข้อเขียนรวม (100)</span>
+                    <span class="text-2xl font-black text-gray-700">${written.toFixed(2)}</span>
+                </div>
+
+                <div class="border-t border-gray-100 my-4"></div>
+
+                <label class="block text-sm font-bold text-lime-700 mb-2 pl-1">
+                    กรอกคะแนนสอบปฏิบัติ <span class="text-gray-400 font-normal">(เต็ม ${maxScore})</span>
+                </label>
+                <div class="relative">
                     <input type="number" id="input-score-modal" 
-                        class="w-full mt-2 px-4 py-3 text-center text-2xl font-bold text-indigo-600 border-2 border-indigo-100 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all"
+                        class="w-full px-4 py-4 text-center text-3xl font-black text-lime-600 border-2 border-lime-200 rounded-2xl focus:border-lime-500 focus:ring-4 focus:ring-lime-100 outline-none transition-all bg-white"
                         value="${practical > 0 ? practical : ''}" 
                         placeholder="0"
                         min="0" max="${maxScore}" step="0.01"
                         onkeydown="if(event.key==='Enter') saveSingleInterviewScore('${id}', ${maxScore})"
                     >
+                    <div class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">คะแนน</div>
                 </div>
 
                 <button onclick="saveSingleInterviewScore('${id}', ${maxScore})" 
-                    class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 active:scale-95 transition-all flex justify-center items-center gap-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                    บันทึกคะแนน
+                    class="w-full mt-6 py-4 btn-primary text-yellow-900 rounded-2xl font-bold shadow-lg shadow-orange-200/50 active:scale-95 transition-all flex justify-center items-center gap-2 text-lg">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    บันทึกข้อมูล
                 </button>
             </div>
         </div>
     </div>
     `;
 
-    // แทรก Modal ลงไปใน Body
     const div = document.createElement('div');
     div.id = 'temp-interview-modal-wrapper';
     div.innerHTML = modalHtml;
     document.body.appendChild(div);
     
-    // Auto focus ช่องกรอก
     setTimeout(() => document.getElementById('input-score-modal').focus(), 100);
+}
+
+function closeInterviewModal() {
+    const el = document.getElementById('temp-interview-modal-wrapper');
+    if (el) el.remove();
+}
+
+// ฟังก์ชันบันทึก (Logic เดิม แต่เปลี่ยนสี Spinner ให้เข้าธีม)
+function saveSingleInterviewScore(id, maxScore) {
+    const input = document.getElementById('input-score-modal');
+    let score = parseFloat(input.value);
+    
+    if (isNaN(score)) score = 0;
+    if (score < 0) score = 0;
+    if (score > maxScore) {
+        alert(`คะแนนห้ามเกิน ${maxScore} คะแนน`);
+        return;
+    }
+
+    const studentIndex = studentsData.findIndex(s => s.__backendId === id);
+    if (studentIndex === -1) return;
+
+    // *** ส่งข้อมูลทั้งก้อนเพื่อป้องกันข้อมูลหาย ***
+    const student = studentsData[studentIndex];
+    const updateData = {
+        ...student,             
+        practical_score: score  
+    };
+
+    const btn = document.querySelector('#interview-modal button');
+    const originalText = btn.innerHTML;
+    // Spinner สีน้ำตาลเข้ม (เข้ากับปุ่มส้ม)
+    btn.innerHTML = `<svg class="animate-spin h-5 w-5 text-yellow-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> กำลังบันทึก...`;
+    btn.disabled = true;
+
+    window.dataSdk.update(updateData).then(res => {
+        if (res.isOk) {
+            studentsData[studentIndex].practical_score = score;
+            closeInterviewModal();
+            renderAdminDashboard();
+        } else {
+            alert('เกิดข้อผิดพลาด: ' + res.error.message);
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    });
 }
 
 function closeInterviewModal() {
@@ -1155,9 +1222,9 @@ function saveSingleInterviewScore(id, maxScore) {
 }
 window.addEventListener('load', () => { window.dataSdk.init(dataHandler); render(); });
 // --- ฟังก์ชันย่อย 3: หน้าบันทึกคะแนนปฏิบัติ/สัมภาษณ์ (ฉบับปรับปรุง: สวยงาม + โชว์คะแนนดิบ + แก้บั๊กชื่อหาย) ---
-// --- ฟังก์ชันย่อย 3: หน้าบันทึกคะแนนปฏิบัติ (มีปุ่มบันทึก แก้ปัญหาข้อมูลหาย) ---
+// --- ฟังก์ชันย่อย 3: หน้าตารางรายชื่อผู้มีสิทธิ์สอบปฏิบัติ (ธีมสีเขียว/ระบบหลัก) ---
 function renderInterviewView(allStudents) {
-    // 1. Logic Clearing House (หาผู้มีสิทธิ์)
+    // 1. Logic Clearing House
     const sortedForClearing = [...allStudents].sort((a,b) => (b.total_score||0) - (a.total_score||0));
     const currentQuotas = { ...quotas[adminTab] };
     const counts = {};
@@ -1175,7 +1242,7 @@ function renderInterviewView(allStudents) {
         }
     });
 
-    // 2. ตั้งค่า Tab
+    // 2. ตั้งค่า
     const availablePrograms = adminTab === 'm1' ? ['sm', 'gate', 'eis'] : ['sme', 'gate'];
     if (rankingTab === 'all' || !availablePrograms.includes(rankingTab)) rankingTab = availablePrograms[0];
 
@@ -1184,10 +1251,8 @@ function renderInterviewView(allStudents) {
     const maxTotal = 100 + maxPractical;
     const finalRoundQuota = 40; 
 
-    // 3. กรองรายชื่อ
+    // 3. กรองรายชื่อ & เรียงลำดับ
     let interviewList = allStudents.filter(s => allocationResult[s.__backendId] === targetProgramName);
-
-    // 4. เรียงลำดับตามคะแนนรวม (Grand Total)
     interviewList = interviewList.map(s => {
         const written = parseFloat(s.total_score) || 0;
         const practical = parseFloat(s.practical_score) || 0;
@@ -1204,60 +1269,68 @@ function renderInterviewView(allStudents) {
         <div class="flex flex-wrap gap-2">
             ${tabs.map(t => `
                 <button onclick="rankingTab='${t.id}';renderAdminDashboard();" 
-                    class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border shadow-sm ${rankingTab===t.id ? 'bg-indigo-600 text-white border-indigo-600 shadow-indigo-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}">
+                    class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border shadow-sm ${rankingTab===t.id ? 'bg-lime-500 text-white border-lime-500 shadow-lg shadow-lime-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}">
                     ${t.label}
                 </button>
             `).join('')}
         </div>
     </div>
 
-    <div class="bg-white rounded-3xl shadow-lg border border-gray-100 overflow-hidden">
-        <div class="p-5 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-            <h3 class="font-bold text-gray-800 text-lg">โครงการ ${targetProgramName} <span class="text-sm font-normal text-gray-500">(ผู้มีสิทธิ์สอบ: ${interviewList.length} คน)</span></h3>
-            <div class="text-sm text-gray-500">ปฏิบัติเต็ม: <b>${maxPractical}</b> | รวมเต็ม: <b>${maxTotal}</b></div>
+    <div class="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
+        <div class="p-6 bg-lime-50/50 border-b border-lime-100 flex justify-between items-center">
+            <div>
+                <h3 class="font-bold text-lime-800 text-lg flex items-center gap-2">
+                    <span class="w-2 h-6 bg-lime-500 rounded-full inline-block"></span>
+                    โครงการ ${targetProgramName}
+                </h3>
+                <p class="text-xs text-lime-600 mt-1 pl-4">คะแนนเต็ม: ข้อเขียน (100) + ปฏิบัติ (${maxPractical}) = ${maxTotal}</p>
+            </div>
+            <div class="text-sm font-bold text-gray-500 bg-white px-4 py-2 rounded-xl shadow-sm">
+                จำนวนผู้มีสิทธิ์: <span class="text-lime-600 text-lg">${interviewList.length}</span> คน
+            </div>
         </div>
         
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
                 <thead>
-                    <tr class="bg-gray-100 text-gray-600 text-xs uppercase font-bold">
-                        <th class="px-4 py-3 w-10 text-center">ที่</th>
-                        <th class="px-4 py-3">ชื่อ-สกุล</th>
-                        <th class="px-4 py-3 text-center bg-gray-200">ข้อเขียน</th>
-                        <th class="px-4 py-3 text-center text-indigo-700">คะแนนปฏิบัติ</th>
-                        <th class="px-4 py-3 text-center font-bold">รวมสุทธิ</th>
-                        <th class="px-4 py-3 text-center">สถานะ</th>
-                        <th class="px-4 py-3 text-center">จัดการ</th>
+                    <tr class="bg-gray-50 text-gray-500 text-xs uppercase font-bold tracking-wider">
+                        <th class="px-6 py-4 w-16 text-center">ที่</th>
+                        <th class="px-6 py-4">ชื่อ-สกุล</th>
+                        <th class="px-6 py-4 text-center">ข้อเขียน<br>(100)</th>
+                        <th class="px-6 py-4 text-center text-lime-700 bg-lime-50/50">คะแนนปฏิบัติ<br>(เต็ม ${maxPractical})</th>
+                        <th class="px-6 py-4 text-center">รวมสุทธิ<br>(เต็ม ${maxTotal})</th>
+                        <th class="px-6 py-4 text-center">สถานะ</th>
+                        <th class="px-6 py-4 text-center">จัดการ</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-100 text-sm">
+                <tbody class="divide-y divide-gray-50 text-sm">
                     ${interviewList.length > 0 ? interviewList.map((s, i) => `
-                    <tr class="hover:bg-indigo-50/20 transition-colors">
-                        <td class="px-4 py-3 text-center font-bold text-gray-400">#${i+1}</td>
-                        <td class="px-4 py-3">
+                    <tr class="hover:bg-lime-50/30 transition-colors group">
+                        <td class="px-6 py-4 text-center font-bold text-gray-400 group-hover:text-lime-600">#${i+1}</td>
+                        <td class="px-6 py-4">
                             <div class="font-bold text-gray-800">${s.full_name}</div>
-                            <div class="text-xs text-gray-400 font-mono">${s.exam_id}</div>
+                            <div class="text-xs text-gray-400 font-mono mt-0.5">${s.exam_id}</div>
                         </td>
-                        <td class="px-4 py-3 text-center font-bold text-gray-700 bg-gray-50">${s.written_score.toFixed(2)}</td>
-                        <td class="px-4 py-3 text-center text-indigo-700 font-medium">
+                        <td class="px-6 py-4 text-center font-bold text-gray-600">${s.written_score.toFixed(2)}</td>
+                        <td class="px-6 py-4 text-center font-bold text-lime-700 bg-lime-50/20">
                             ${s.practical_score > 0 ? s.practical_score.toFixed(2) : '-'}
                         </td>
-                        <td class="px-4 py-3 text-center font-black text-gray-800 text-lg">
+                        <td class="px-6 py-4 text-center font-black text-gray-800 text-lg">
                             ${s.grand_total.toFixed(2)}
                         </td>
-                        <td class="px-4 py-3 text-center">
+                        <td class="px-6 py-4 text-center">
                             ${i < finalRoundQuota 
-                                ? `<span class="text-green-600 font-bold text-xs">ตัวจริง</span>` 
-                                : `<span class="text-amber-600 font-bold text-xs">สำรอง #${i - finalRoundQuota + 1}</span>`}
+                                ? `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-100 text-green-700 font-bold text-xs border border-green-200">ตัวจริง</span>` 
+                                : `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-50 text-orange-600 font-bold text-xs border border-orange-100">สำรอง #${i - finalRoundQuota + 1}</span>`}
                         </td>
-                        <td class="px-4 py-3 text-center">
+                        <td class="px-6 py-4 text-center">
                             <button onclick="showInterviewForm('${s.__backendId}', ${maxPractical}, '${targetProgramName}')" 
-                                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-md shadow-indigo-200 active:scale-95 transition-all flex items-center justify-center gap-2 mx-auto">
+                                class="px-4 py-2 bg-lime-100 hover:bg-lime-200 text-lime-700 rounded-xl text-xs font-bold shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2 mx-auto border border-lime-200">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                                 ให้คะแนน
                             </button>
                         </td>
-                    </tr>`).join('') : `<tr><td colspan="7" class="text-center py-8 text-gray-400">ไม่มีข้อมูล</td></tr>`}
+                    </tr>`).join('') : `<tr><td colspan="7" class="text-center py-12 text-gray-400">ไม่มีข้อมูล</td></tr>`}
                 </tbody>
             </table>
         </div>
