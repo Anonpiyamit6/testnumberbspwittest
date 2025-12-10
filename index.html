@@ -30,29 +30,83 @@ body.modal-active { overflow: hidden !important; }
 .tab-btn { border-bottom: 3px solid transparent; color: #9ca3af; padding: 12px 16px; transition: all 0.2s; white-space: nowrap; cursor: pointer; }
 .tab-btn.active { border-bottom: 3px solid #84cc16; color: #4d7c0f; font-weight: bold; background-color: #f7fee7; }
 @media print {
-    @page { size: A4 portrait; margin: 1cm; }
-    body { background-color: white !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    @page { 
+        size: A4 portrait; 
+        margin: 1.5cm; /* เว้นขอบกระดาษพอดีสวย */
+    }
     
-    /* ซ่อนส่วนที่ไม่ต้องการพิมพ์ */
-    #sidebar, #sidebar-overlay, .no-print, button, input[type="text"] { display: none !important; }
+    body { 
+        font-family: 'Sarabun', sans-serif !important;
+        background-color: white !important;
+        color: black !important;
+        -webkit-print-color-adjust: exact !important; 
+        print-color-adjust: exact !important;
+    }
     
-    /* จัดการ Layout ตอนพิมพ์ */
-    #app { height: auto !important; overflow: visible !important; }
-    .h-full { height: auto !important; overflow: visible !important; }
-    .overflow-auto, .overflow-x-auto { overflow: visible !important; }
+    /* ซ่อนส่วนที่ไม่จำเป็น */
+    #sidebar, #sidebar-overlay, .no-print, button, input, .shadow-sm, .shadow-lg, .shadow-xl { 
+        display: none !important; 
+        box-shadow: none !important;
+    }
     
-    /* ปรับตารางให้สวยงาม */
-    table { width: 100% !important; min-width: 0 !important; border-collapse: collapse !important; font-size: 12pt !important; }
-    th, td { border: 1px solid #ddd !important; padding: 8px !important; page-break-inside: avoid; }
-    thead { display: table-header-group; }
-    tr { page-break-inside: avoid; page-break-after: auto; }
+    /* ปรับ Layout หลัก */
+    #app, .h-full, .overflow-auto { 
+        height: auto !important; 
+        overflow: visible !important; 
+        background: white !important;
+    }
     
-    /* แสดงส่วนหัวกระดาษเฉพาะตอนพิมพ์ */
-    #print-header { display: block !important; margin-bottom: 20px; text-align: center; }
+    /* จัดการตารางให้เป็นระเบียบ (Key สำคัญ) */
+    table { 
+        width: 100% !important; 
+        border-collapse: collapse !important; 
+        font-size: 11pt !important; /* ขนาดตัวอักษรพอดีอ่าน */
+        margin-top: 10px !important;
+    }
+    
+    thead th {
+        background-color: #f0f0f0 !important; /* หัวตารางสีเทาอ่อน */
+        color: black !important;
+        font-weight: bold !important;
+        border: 1px solid black !important; /* เส้นขอบสีดำชัดเจน */
+        padding: 8px !important;
+        text-align: center !important;
+    }
+    
+    tbody td {
+        border: 1px solid black !important; /* เส้นขอบสีดำชัดเจน */
+        padding: 6px 8px !important;
+        vertical-align: middle !important;
+    }
+    
+    /* ป้องกันแถวตารางขาดครึ่งหน้า */
+    tr { page-break-inside: avoid; }
+    
+    /* ปรับสีพื้นหลังแถวสถานะให้พิมพ์ติด (ต้องติ๊ก Background graphics ตอนพิมพ์) */
+    tr.bg-green-50\/50 { background-color: #dcfce7 !important; }
+    tr.bg-red-50\/50 { background-color: #fee2e2 !important; }
+    
+    /* ปรับแต่ง Badge สถานะให้ดูเป็นการพิมพ์ */
+    .rounded-full {
+        border-radius: 4px !important; /* ลดความมนลง */
+        border: 1px solid #ccc !important;
+        padding: 2px 8px !important;
+    }
+    
+    /* หัวกระดาษ */
+    #print-header { 
+        display: block !important; 
+        margin-bottom: 10px; 
+    }
+    
+    /* ท้ายกระดาษ (ลายเซ็น) */
+    .print-footer {
+        display: flex !important;
+        justify-content: space-between;
+        margin-top: 30px;
+        page-break-inside: avoid;
+    }
 }
-
-/* ซ่อนหัวกระดาษตอนดูหน้าจอปกติ */
-#print-header { display: none; }
 </style>
 
 <script>
@@ -469,23 +523,17 @@ function renderManageView(data, totalCount) {
 // --- ฟังก์ชันย่อย 2: แสดงหน้าจัดลำดับ (Ranking View) ---
 // --- ฟังก์ชันย่อย 2: แสดงหน้าจัดลำดับ (Ranking View) พร้อมระบบพิมพ์ PDF ---
 function renderRankingView(allStudents) {
-    // 1. เรียงลำดับคะแนนรวมทั้งหมด
+    // 1. เรียงลำดับคะแนน
     const sortedAll = [...allStudents].sort((a,b) => b.total_score - a.total_score);
 
-    // 2. จำลองการจัดสรรที่นั่ง (Clearing House Logic)
+    // 2. Logic Clearing House (เหมือนเดิม)
     const currentQuotas = { ...quotas[adminTab] };
     const counts = {};
     Object.keys(currentQuotas).forEach(k => counts[k] = 0);
     const allocationResult = {}; 
 
     sortedAll.forEach(s => {
-        let choices = [];
-        if(adminTab === 'm4') {
-            choices = [s.choice_1, s.choice_2].filter(c => c);
-        } else {
-            choices = [s.choice_1, s.choice_2, s.choice_3].filter(c => c);
-        }
-
+        let choices = adminTab === 'm4' ? [s.choice_1, s.choice_2].filter(c=>c) : [s.choice_1, s.choice_2, s.choice_3].filter(c=>c);
         for (const choiceName of choices) {
             if (currentQuotas[choiceName] !== undefined && counts[choiceName] < currentQuotas[choiceName]) {
                 allocationResult[s.__backendId] = choiceName;
@@ -495,34 +543,26 @@ function renderRankingView(allStudents) {
         }
     });
 
-    // 3. เตรียมข้อมูลแสดงผล
+    // 3. เตรียมข้อมูล
     let renderList = [];
     let showQuota = 0;
     
     if (rankingTab === 'all') {
         renderList = sortedAll.map((s, i) => ({ 
-            ...s, 
-            rank: i+1, 
-            status: allocationResult[s.__backendId] ? 'pass' : 'fail',
-            got_program: allocationResult[s.__backendId] || '-'
+            ...s, rank: i+1, status: allocationResult[s.__backendId] ? 'pass' : 'fail', got_program: allocationResult[s.__backendId] || '-'
         }));
     } else {
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
         showQuota = (quotas[adminTab] && quotas[adminTab][targetProgram]) || 0;
-
         renderList = sortedAll.filter(s => {
             if (allocationResult[s.__backendId] === targetProgram) return true;
             const isSelectedHere = (s.choice_1 === targetProgram || s.choice_2 === targetProgram || (adminTab !== 'm4' && s.choice_3 === targetProgram));
             const gotOtherPlace = allocationResult[s.__backendId] !== undefined;
-            if (isSelectedHere && !gotOtherPlace) return true;
-            return false;
-        }).map((s, i) => {
-             return {
-                ...s,
-                rank: sortedAll.findIndex(x => x.__backendId === s.__backendId) + 1,
-                status: allocationResult[s.__backendId] === targetProgram ? 'pass' : 'fail'
-             };
-        });
+            return isSelectedHere && !gotOtherPlace;
+        }).map((s, i) => ({
+            ...s, rank: sortedAll.findIndex(x => x.__backendId === s.__backendId) + 1,
+            status: allocationResult[s.__backendId] === targetProgram ? 'pass' : 'fail'
+        }));
     }
 
     const tabsM1 = [{ id: 'all', label: 'สรุปภาพรวม' }, { id: 'sm', label: 'S&M (80)' }, { id: 'gate', label: 'GATE (60)' }, { id: 'eis', label: 'EIS (60)' }];
@@ -530,74 +570,70 @@ function renderRankingView(allStudents) {
     const currentTabs = adminTab === 'm1' ? tabsM1 : tabsM4;
     const currentTabLabel = currentTabs.find(t => t.id === rankingTab)?.label || '';
 
+    // HTML Structure
     return `
-    <div id="print-header">
-        <div class="mx-auto mb-2"><img src="https://img2.pic.in.th/pic/-69-1.png" style="height: 80px; width: auto; margin: 0 auto;"></div>
-        <h1 style="font-size: 18pt; font-weight: bold; line-height: 1.2;">ประกาศผลคะแนนสอบคัดเลือกนักเรียนห้องเรียนพิเศษ ${adminTab==='m1'?'ม.1':'ม.4'}</h1>
-        <h2 style="font-size: 16pt; font-weight: bold; margin-bottom: 5px;">${rankingTab === 'all' ? 'รายชื่อคะแนนรวมทั้งหมด' : 'โครงการ ' + currentTabLabel.split('(')[0]}</h2>
-        <p style="font-size: 12pt; margin-bottom: 15px;">โรงเรียนบางสะพานวิทยา ปีการศึกษา ${window.elementSdk?.config?.admission_year || '2569'}</p>
-        <div style="border-bottom: 2px solid black; margin-bottom: 20px;"></div>
+    <div id="print-header" class="hidden text-center mb-4">
+        <div class="flex items-center justify-center gap-4 mb-2">
+            <img src="https://img2.pic.in.th/pic/-69-1.png" style="height: 60px; width: auto;">
+            <div class="text-left">
+                <h1 class="text-xl font-bold text-black">ประกาศผลคะแนนสอบคัดเลือกนักเรียนห้องเรียนพิเศษ ${adminTab==='m1'?'ม.1':'ม.4'}</h1>
+                <p class="text-sm text-black">โรงเรียนบางสะพานวิทยา ปีการศึกษา ${window.elementSdk?.config?.admission_year || '2569'}</p>
+            </div>
+        </div>
+        <div class="border-b-2 border-black w-full mb-2"></div>
+        <h2 class="text-lg font-bold text-black text-left">
+            รายการ: ${rankingTab === 'all' ? 'สรุปคะแนนรวมทั้งหมด (เรียงตามคะแนน)' : 'โครงการ ' + currentTabLabel.split('(')[0]}
+            ${rankingTab !== 'all' ? `<span class="text-sm font-normal ml-2">(จำนวนรับ: ${showQuota} คน)</span>` : ''}
+        </h2>
     </div>
 
     <div class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 no-print">
         <div>
             <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">ประกาศผลสอบ (Clearing House) ${adminTab==='m1'?'ม.1':'ม.4'}</h1>
             <div class="flex flex-wrap gap-2">
-                ${currentTabs.map(t => `
-                    <button onclick="rankingTab='${t.id}';renderAdminDashboard();" 
-                        class="px-4 py-2 rounded-xl text-sm font-bold transition-all border ${rankingTab===t.id ? 'bg-lime-500 text-white border-lime-500 shadow-lg shadow-lime-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}">
-                        ${t.label}
-                    </button>
-                `).join('')}
+                ${currentTabs.map(t => `<button onclick="rankingTab='${t.id}';renderAdminDashboard();" class="px-4 py-2 rounded-xl text-sm font-bold transition-all border ${rankingTab===t.id ? 'bg-lime-500 text-white border-lime-500 shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}">${t.label}</button>`).join('')}
             </div>
         </div>
-        <button onclick="window.print()" class="flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold shadow-lg shadow-purple-200 transition-all active:scale-95">
+        <button onclick="window.print()" class="flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold shadow-lg transition-all active:scale-95">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-            พิมพ์รายงาน (PDF)
+            พิมพ์รายงาน
         </button>
     </div>
 
-    <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100 print:border-none print:shadow-none">
+    <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100 print:rounded-none print:shadow-none print:border-none">
         <div class="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center no-print">
-            <h3 class="font-bold text-gray-700">
-                ${rankingTab === 'all' ? 'รายชื่อคะแนนรวมทั้งหมด' : `รายชื่อผู้มีสิทธิ์เข้าศึกษาโครงการ ${currentTabLabel.split('(')[0]}`}
-            </h3>
-            ${rankingTab !== 'all' ? `<div class="text-xs font-bold text-gray-400">จำนวนรับจริง: ${renderList.filter(x=>x.status==='pass').length} / ${showQuota}</div>` : ''}
+            <h3 class="font-bold text-gray-700">${rankingTab === 'all' ? 'รายชื่อทั้งหมด' : 'รายชื่อผู้มีสิทธิ์'}</h3>
+            ${rankingTab !== 'all' ? `<div class="text-xs font-bold text-gray-400">ผ่าน: ${renderList.filter(x=>x.status==='pass').length} / ${showQuota}</div>` : ''}
         </div>
         <div class="overflow-x-auto print:overflow-visible">
             <table class="w-full text-left min-w-[700px] print:min-w-full">
-                <thead class="bg-white text-gray-600 text-sm uppercase font-bold border-b border-gray-100 print:text-black print:border-black">
+                <thead>
                     <tr>
-                        <th class="px-6 py-3 w-16 text-center print:px-2 print:py-2">ลำดับ</th>
-                        <th class="px-6 py-3 print:px-2 print:py-2">รหัส-ชื่อสกุล</th>
-                        <th class="px-6 py-3 text-center print:px-2 print:py-2">คะแนน</th>
-                        <th class="px-6 py-3 print:px-2 print:py-2">การเลือกอันดับ</th>
-                        <th class="px-6 py-3 text-center print:px-2 print:py-2">ผลการคัดเลือก</th>
+                        <th style="width: 50px;">ที่</th>
+                        <th>รหัสประจำตัว - ชื่อสกุล</th>
+                        <th class="text-center" style="width: 80px;">คะแนน</th>
+                        <th>อันดับโครงการที่เลือก</th>
+                        <th class="text-center" style="width: 100px;">สถานะ</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-50 text-sm print:divide-black">
+                <tbody>
                     ${renderList.length > 0 ? renderList.map(s => `
-                    <tr class="${s.status==='pass' ? 'bg-green-50/50 print:bg-transparent' : ''} hover:bg-gray-100 transition-colors">
-                        <td class="px-6 py-4 text-center font-bold text-gray-500 print:text-black print:px-2 print:py-2">#${s.rank}</td>
-                        <td class="px-6 py-4 print:px-2 print:py-2">
-                            <div class="font-bold text-gray-700 print:text-black">${s.exam_id}</div>
-                            <div class="text-xs text-gray-500 print:text-black print:text-sm">${s.full_name}</div>
+                    <tr class="${s.status==='pass' ? 'bg-green-50/50' : (s.status==='fail'?'bg-red-50/50':'')}">
+                        <td class="text-center font-bold">#${s.rank}</td>
+                        <td>
+                            <div class="font-bold">${s.exam_id}</div>
+                            <div class="text-xs">${s.full_name}</div>
                         </td>
-                        <td class="px-6 py-4 text-center font-bold text-gray-700 print:text-black print:px-2 print:py-2">${s.total_score.toFixed(2)}</td>
-                        <td class="px-6 py-4 text-xs text-gray-500 space-y-1 print:text-black print:px-2 print:py-2">
+                        <td class="text-center font-bold">${s.total_score.toFixed(2)}</td>
+                        <td class="text-xs space-y-1">
                             ${[s.choice_1, s.choice_2, (adminTab!=='m4'?s.choice_3:null)].filter(c=>c).map((c,i)=>`
-                                <div class="${rankingTab!=='all' && c.includes({sm:'S&M',gate:'GATE',eis:'EIS',sme:'SME'}[rankingTab]) ? 'font-bold text-lime-600 print:text-black print:font-bold':''}">
-                                    ${i+1}. ${c}
-                                </div>
+                                <div class="${rankingTab!=='all' && c.includes({sm:'S&M',gate:'GATE',eis:'EIS',sme:'SME'}[rankingTab]) ? 'font-bold':''}">${i+1}. ${c}</div>
                             `).join('')}
                         </td>
-                        <td class="px-6 py-4 text-center print:px-2 print:py-2">
-                            ${rankingTab === 'all' 
-                                ? (s.status === 'pass' ? `<span class="text-green-600 font-bold print:text-black print:border print:px-2 print:rounded">ติด ${s.got_program}</span>` : `<span class="text-gray-400 print:text-black">-</span>`)
-                                : (s.status === 'pass' 
-                                    ? `<span class="px-3 py-1 rounded-full bg-green-100 text-green-700 font-bold text-xs shadow-sm print:bg-transparent print:text-black print:border print:border-black">ตัวจริง</span>` 
-                                    : `<span class="px-3 py-1 rounded-full bg-red-100 text-red-600 font-bold text-xs print:bg-transparent print:text-black">ไม่ผ่านเกณฑ์</span>`)
-                            }
+                        <td class="text-center">
+                            ${s.status === 'pass' 
+                                ? `<span class="rounded-full bg-green-100 text-green-700 font-bold text-xs px-2 py-1 print:border print:border-black print:text-black print:bg-transparent">ตัวจริง</span>` 
+                                : (s.status === 'fail' ? `<span class="text-red-500 font-bold text-xs print:text-black">ไม่ผ่าน</span>` : `-`)}
                         </td>
                     </tr>`).join('') : `<tr><td colspan="5" class="text-center py-8 text-gray-400">ไม่มีข้อมูล</td></tr>`}
                 </tbody>
@@ -605,24 +641,23 @@ function renderRankingView(allStudents) {
         </div>
     </div>
     
-    <div class="hidden print:block mt-8 pt-8 px-4 break-inside-avoid">
-        <div class="flex justify-between items-end">
-            <div class="text-center w-1/3">
-                <p>ลงชื่อ......................................................กรรมการ</p>
-                <p class="mt-2">(......................................................)</p>
-            </div>
-            <div class="text-center w-1/3">
-                <p>ลงชื่อ......................................................นายทะเบียน</p>
-                <p class="mt-2">(......................................................)</p>
-            </div>
-            <div class="text-center w-1/3">
-                <p>ลงชื่อ......................................................ผู้อำนวยการ</p>
-                <p class="mt-2">(......................................................)</p>
-            </div>
+    <div class="hidden print-footer">
+        <div class="text-center w-1/3">
+            <p style="margin-bottom: 20px;">ลงชื่อ.........................................กรรมการ</p>
+            <p>(.........................................)</p>
+        </div>
+        <div class="text-center w-1/3">
+            <p style="margin-bottom: 20px;">ลงชื่อ.........................................นายทะเบียน</p>
+            <p>(.........................................)</p>
+        </div>
+        <div class="text-center w-1/3">
+            <p style="margin-bottom: 20px;">ลงชื่อ.........................................ผู้อำนวยการ</p>
+            <p>(.........................................)</p>
         </div>
     </div>
     `;
 }
+    
 function triggerSearch() { searchQuery = document.getElementById('search-input').value.trim(); renderAdminDashboard(); }
 
 function renderStudentView() {
