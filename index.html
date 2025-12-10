@@ -1033,9 +1033,9 @@ function confirmExcelImport(type) { if(type === 'student' && excelDataCache.leng
 function deleteStudent(id) { showConfirm('ยืนยันลบ', 'ลบข้อมูลนี้หรือไม่?', () => { showLoading('กำลังลบ...'); window.dataSdk.delete({__backendId: id}).then(res => { setTimeout(() => { hideLoading(); if(res.isOk) showAlert('สำเร็จ', 'ลบเรียบร้อย'); else showAlert('ผิดพลาด', res.error.message); }, 500); }); }); }
 
 window.addEventListener('load', () => { window.dataSdk.init(dataHandler); render(); });
-// --- ฟังก์ชันย่อย 3: หน้าบันทึกคะแนนปฏิบัติ/สัมภาษณ์ ---
+// --- ฟังก์ชันย่อย 3: หน้าบันทึกคะแนนปฏิบัติ/สัมภาษณ์ (แก้ไข: ตัวจริง 40 คนแรก) ---
 function renderInterviewView(allStudents) {
-    // 1. Logic Clearing House (เพื่อหาว่าใครติดโครงการไหนบ้าง)
+    // 1. Logic Clearing House (ดึงรายชื่อคนที่ผ่านรอบแรก)
     const sortedAll = [...allStudents].sort((a,b) => b.total_score - a.total_score);
     const currentQuotas = { ...quotas[adminTab] };
     const counts = {};
@@ -1054,27 +1054,29 @@ function renderInterviewView(allStudents) {
     });
 
     // 2. ตั้งค่า Tab และดึงข้อมูล
-    // ถ้ายังไม่ได้เลือก Tab หรือเลือก all ให้เด้งไป Tab แรกสุดของชั้นนั้นๆ
     const availablePrograms = adminTab === 'm1' ? ['sm', 'gate', 'eis'] : ['sme', 'gate'];
     if (rankingTab === 'all' || !availablePrograms.includes(rankingTab)) rankingTab = availablePrograms[0];
 
     const targetProgramName = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
     
-    // กำหนดคะแนนเต็มตามเงื่อนไข (S&M=20, อื่นๆ=100)
+    // Config คะแนน
     const maxPractical = targetProgramName === 'S&M' ? 20 : 100;
     const maxTotal = 100 + maxPractical; 
+    
+    // *** แก้ไข: กำหนดโควตาตัวจริงรอบสุดท้ายเป็น 40 คน (ทุกโครงการ) ***
+    const finalRoundQuota = 40; 
 
-    // ดึงคนที่ติดโครงการนี้ (จากผล Clearing House)
+    // ดึงคนที่ติดโครงการนี้
     let interviewList = sortedAll.filter(s => allocationResult[s.__backendId] === targetProgramName);
 
-    // 3. เรียงลำดับใหม่ตาม (คะแนนข้อเขียน + คะแนนปฏิบัติ)
+    // 3. เรียงลำดับตามคะแนนรวมใหม่ (ข้อเขียน + ปฏิบัติ)
     interviewList = interviewList.map(s => {
-        const written = s.total_score || 0; // คะแนน 3 วิชา (เต็ม 100)
-        const practical = s.practical_score || 0; // คะแนนปฏิบัติ
+        const written = s.total_score || 0;
+        const practical = s.practical_score || 0;
         return { ...s, written_score: written, grand_total: written + practical };
-    }).sort((a, b) => b.grand_total - a.grand_total); // เรียงตามคะแนนรวมใหม่
+    }).sort((a, b) => b.grand_total - a.grand_total); // คะแนนมากอยู่บน
 
-    // สร้างปุ่ม Tabs
+    // สร้าง Tabs
     const tabs = adminTab === 'm1' 
         ? [{ id: 'sm', label: 'S&M' }, { id: 'gate', label: 'GATE' }, { id: 'eis', label: 'EIS' }]
         : [{ id: 'sme', label: 'SME' }, { id: 'gate', label: 'GATE' }];
@@ -1096,9 +1098,12 @@ function renderInterviewView(allStudents) {
         <div class="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
             <div>
                 <h3 class="font-bold text-gray-700">รายชื่อผู้มีสิทธิ์สอบปฏิบัติ: โครงการ ${targetProgramName}</h3>
-                <p class="text-xs text-gray-500 mt-1">คะแนนปฏิบัติเต็ม: <span class="font-bold text-purple-600">${maxPractical}</span> | คะแนนรวมเต็ม: <span class="font-bold text-purple-600">${maxTotal}</span></p>
+                <p class="text-xs text-gray-500 mt-1">
+                    คะแนนปฏิบัติเต็ม: <span class="font-bold text-purple-600">${maxPractical}</span> | 
+                    รับตัวจริง: <span class="font-bold text-green-600">${finalRoundQuota}</span> คน
+                </p>
             </div>
-            <div class="text-xs font-bold text-gray-400">จำนวน: ${interviewList.length} คน</div>
+            <div class="text-xs font-bold text-gray-400">ผู้เข้าสอบ: ${interviewList.length} คน</div>
         </div>
         
         <div class="overflow-x-auto">
@@ -1110,7 +1115,7 @@ function renderInterviewView(allStudents) {
                         <th class="px-6 py-3 text-center">ข้อเขียน<br>(100)</th>
                         <th class="px-6 py-3 text-center bg-purple-50 text-purple-700 w-32">คะแนนปฏิบัติ<br>(เต็ม ${maxPractical})</th>
                         <th class="px-6 py-3 text-center w-32">รวมสุทธิ<br>(เต็ม ${maxTotal})</th>
-                        <th class="px-6 py-3 text-center">สถานะใหม่</th>
+                        <th class="px-6 py-3 text-center">สถานะ</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50 text-sm">
@@ -1132,9 +1137,9 @@ function renderInterviewView(allStudents) {
                             <span class="text-lg font-black text-gray-800">${s.grand_total.toFixed(2)}</span>
                         </td>
                         <td class="px-6 py-4 text-center">
-                            ${i < quotas[adminTab][targetProgramName] 
+                            ${i < finalRoundQuota 
                                 ? `<span class="px-2 py-1 rounded bg-green-100 text-green-700 font-bold text-xs">ตัวจริง</span>` 
-                                : `<span class="px-2 py-1 rounded bg-amber-100 text-amber-700 font-bold text-xs">สำรอง #${i - quotas[adminTab][targetProgramName] + 1}</span>`}
+                                : `<span class="px-2 py-1 rounded bg-amber-100 text-amber-700 font-bold text-xs">สำรอง #${i - finalRoundQuota + 1}</span>`}
                         </td>
                     </tr>`).join('') : `<tr><td colspan="6" class="text-center py-8 text-gray-400">ยังไม่มีผู้ผ่านการคัดเลือกในรอบข้อเขียน</td></tr>`}
                 </tbody>
@@ -1143,7 +1148,6 @@ function renderInterviewView(allStudents) {
     </div>
     `;
 }
-
 // ฟังก์ชันบันทึกคะแนนปฏิบัติ (ทำงานทันทีเมื่อพิมพ์เสร็จ)
 function updatePracticalScore(id, value, max) {
     let score = parseFloat(value);
