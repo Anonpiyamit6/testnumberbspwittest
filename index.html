@@ -1034,10 +1034,11 @@ function deleteStudent(id) { showConfirm('ยืนยันลบ', 'ลบข�
 
 window.addEventListener('load', () => { window.dataSdk.init(dataHandler); render(); });
 // --- ฟังก์ชันย่อย 3: หน้าบันทึกคะแนนปฏิบัติ/สัมภาษณ์ (ฉบับปรับปรุง: สวยงาม + โชว์คะแนนดิบ + แก้บั๊กชื่อหาย) ---
+// --- ฟังก์ชันย่อย 3: หน้าบันทึกคะแนนปฏิบัติ (มีปุ่มบันทึก แก้ปัญหาข้อมูลหาย) ---
 function renderInterviewView(allStudents) {
-    // 1. Logic Clearing House (คำนวณจากคะแนนข้อเขียนเท่านั้น เพื่อหาผู้มีสิทธิ์)
-    // *** สำคัญ: เรียงตาม total_score (ข้อเขียน) เท่านั้น ห้ามเอา practical มาปนในขั้นตอนนี้ ***
-    const sortedForClearing = [...allStudents].sort((a,b) => b.total_score - a.total_score);
+    // 1. Logic Clearing House (ใช้คะแนนข้อเขียนเท่านั้นในการคัดเลือกผู้มีสิทธิ์)
+    // เรียงตามข้อเขียนเพื่อหาว่าใครติดโครงการไหน
+    const sortedForClearing = [...allStudents].sort((a,b) => (b.total_score||0) - (a.total_score||0));
     const currentQuotas = { ...quotas[adminTab] };
     const counts = {};
     Object.keys(currentQuotas).forEach(k => counts[k] = 0);
@@ -1047,14 +1048,14 @@ function renderInterviewView(allStudents) {
         let choices = adminTab === 'm4' ? [s.choice_1, s.choice_2].filter(c=>c) : [s.choice_1, s.choice_2, s.choice_3].filter(c=>c);
         for (const choiceName of choices) {
             if (currentQuotas[choiceName] !== undefined && counts[choiceName] < currentQuotas[choiceName]) {
-                allocationResult[s.__backendId] = choiceName; // คนนี้ได้สิทธิ์โครงการนี้
+                allocationResult[s.__backendId] = choiceName;
                 counts[choiceName]++;
                 break;
             }
         }
     });
 
-    // 2. ตั้งค่า Tab และดึงข้อมูล
+    // 2. ตั้งค่า Tab
     const availablePrograms = adminTab === 'm1' ? ['sm', 'gate', 'eis'] : ['sme', 'gate'];
     if (rankingTab === 'all' || !availablePrograms.includes(rankingTab)) rankingTab = availablePrograms[0];
 
@@ -1062,35 +1063,24 @@ function renderInterviewView(allStudents) {
     
     // Config คะแนน
     const maxPractical = targetProgramName === 'S&M' ? 20 : 100;
-    const maxTotal = 100 + maxPractical; // 120 หรือ 200
-    const finalRoundQuota = 40; // ตัวจริง 40 คน
+    const maxTotal = 100 + maxPractical;
+    const finalRoundQuota = 40; 
 
-    // กรองรายชื่อ: เอาเฉพาะคนที่ได้สิทธิ์โครงการนี้ จากผล Clearing House (ข้อเขียน)
-    // *** รายชื่อจะนิ่ง ไม่หายไปไหน แม้คะแนนปฏิบัติจะเปลี่ยน ***
+    // 3. กรองรายชื่อ (เอาเฉพาะคนที่ได้สิทธิ์จากรอบข้อเขียน)
     let interviewList = allStudents.filter(s => allocationResult[s.__backendId] === targetProgramName);
 
-    // 3. คำนวณคะแนนรวมใหม่ (ข้อเขียน + ปฏิบัติ) และเรียงลำดับ
+    // 4. คำนวณและเรียงลำดับเบื้องต้น
     interviewList = interviewList.map(s => {
-        const sci = parseFloat(s.science_score) || 0;
-        const math = parseFloat(s.math_score) || 0;
-        const eng = parseFloat(s.english_score) || 0;
-        const written = s.total_score || 0; 
+        const written = parseFloat(s.total_score) || 0;
         const practical = parseFloat(s.practical_score) || 0;
-        
         return { 
             ...s, 
-            sci, math, eng, written_score: written, 
+            written_score: written, 
             practical_score: practical,
-            grand_total: written + practical // คะแนนสุทธิ
+            grand_total: written + practical 
         };
-    }).sort((a, b) => {
-        // เรียงตามคะแนนสุทธิ (มาก -> น้อย)
-        if (b.grand_total !== a.grand_total) return b.grand_total - a.grand_total;
-        // ถ้าเท่ากัน ให้ดูคะแนนข้อเขียน
-        return b.written_score - a.written_score;
-    });
+    }).sort((a, b) => b.grand_total - a.grand_total); // เรียงตามคะแนนรวม
 
-    // สร้าง Tabs
     const tabs = adminTab === 'm1' 
         ? [{ id: 'sm', label: 'S&M' }, { id: 'gate', label: 'GATE' }, { id: 'eis', label: 'EIS' }]
         : [{ id: 'sme', label: 'SME' }, { id: 'gate', label: 'GATE' }];
@@ -1109,89 +1099,69 @@ function renderInterviewView(allStudents) {
             </div>
         </div>
         
-        <div class="bg-indigo-50 px-4 py-3 rounded-xl border border-indigo-100 flex items-center gap-3">
-            <div class="bg-indigo-100 p-2 rounded-lg text-indigo-600">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
-            </div>
-            <div>
-                <p class="text-xs font-bold text-gray-400 uppercase">เกณฑ์ตัดสิน</p>
-                <p class="text-sm font-bold text-indigo-900">ตัวจริง ${finalRoundQuota} คนแรก</p>
-            </div>
-        </div>
+        <button onclick="savePracticalScores()" class="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg shadow-green-200 transition-all active:scale-95 animate-pulse">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+            บันทึกคะแนนทั้งหมด
+        </button>
     </div>
 
-    <div class="bg-white rounded-3xl shadow-lg shadow-gray-200/50 overflow-hidden border border-gray-100">
-        <div class="p-5 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100 flex justify-between items-center">
-            <div>
-                <h3 class="font-bold text-gray-800 text-lg flex items-center gap-2">
-                    <span class="w-2 h-6 bg-indigo-500 rounded-full inline-block"></span>
-                    โครงการ ${targetProgramName}
-                </h3>
-            </div>
-            <div class="flex gap-4 text-sm">
-                <div class="px-3 py-1 rounded-lg bg-gray-100 border border-gray-200 text-gray-600">
-                    ปฏิบัติเต็ม: <span class="font-bold text-black">${maxPractical}</span>
-                </div>
-                <div class="px-3 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700">
-                    รวมสุทธิเต็ม: <span class="font-bold">${maxTotal}</span>
-                </div>
-            </div>
+    <div class="bg-white rounded-3xl shadow-lg border border-gray-100 overflow-hidden">
+        <div class="p-5 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+            <h3 class="font-bold text-gray-800 text-lg">โครงการ ${targetProgramName} <span class="text-sm font-normal text-gray-500">(ผู้มีสิทธิ์สอบ: ${interviewList.length} คน)</span></h3>
+            <div class="text-sm text-gray-500">ปฏิบัติเต็ม: <b>${maxPractical}</b> | รวมเต็ม: <b>${maxTotal}</b></div>
         </div>
         
         <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
+            <table class="w-full text-left border-collapse" id="interview-table">
                 <thead>
-                    <tr class="bg-gray-50/50 text-gray-500 text-xs uppercase font-bold tracking-wider">
-                        <th class="px-4 py-4 w-12 text-center border-b border-gray-100">ที่</th>
-                        <th class="px-4 py-4 border-b border-gray-100">ผู้เข้าสอบ</th>
-                        <th class="px-2 py-4 text-center border-b border-gray-100 text-blue-400">วิทย์ (40)</th>
-                        <th class="px-2 py-4 text-center border-b border-gray-100 text-red-400">คณิต (30)</th>
-                        <th class="px-2 py-4 text-center border-b border-gray-100 text-purple-400">อังกฤษ (30)</th>
-                        <th class="px-4 py-4 text-center border-b border-gray-100 bg-gray-50">รวมข้อเขียน<br>(100)</th>
-                        <th class="px-4 py-4 text-center border-b border-indigo-100 bg-indigo-50 text-indigo-700 w-32">คะแนนปฏิบัติ<br>(เต็ม ${maxPractical})</th>
-                        <th class="px-6 py-4 text-center border-b border-gray-100 w-32">รวมสุทธิ<br>(เต็ม ${maxTotal})</th>
-                        <th class="px-6 py-4 text-center border-b border-gray-100">สถานะ</th>
+                    <tr class="bg-gray-100 text-gray-600 text-xs uppercase font-bold">
+                        <th class="px-4 py-3 w-10 text-center">ที่</th>
+                        <th class="px-4 py-3">ชื่อ-สกุล</th>
+                        <th class="px-2 py-3 text-center text-blue-600">วิทย์</th>
+                        <th class="px-2 py-3 text-center text-red-600">คณิต</th>
+                        <th class="px-2 py-3 text-center text-purple-600">อังกฤษ</th>
+                        <th class="px-4 py-3 text-center bg-gray-200">ข้อเขียน</th>
+                        <th class="px-4 py-3 text-center bg-indigo-50 text-indigo-700 w-32">คะแนนปฏิบัติ</th>
+                        <th class="px-4 py-3 text-center w-24">รวมสุทธิ</th>
+                        <th class="px-4 py-3 text-center">สถานะ (Preview)</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-50 text-sm">
+                <tbody class="divide-y divide-gray-100 text-sm">
                     ${interviewList.length > 0 ? interviewList.map((s, i) => `
-                    <tr class="hover:bg-indigo-50/30 transition-colors group">
-                        <td class="px-4 py-4 text-center font-bold text-gray-400 group-hover:text-indigo-500">#${i+1}</td>
-                        <td class="px-4 py-4">
-                            <div class="font-bold text-gray-800 text-[15px]">${s.full_name}</div>
-                            <div class="text-xs text-gray-400 font-mono mt-0.5">${s.exam_id}</div>
+                    <tr class="hover:bg-indigo-50/20 transition-colors row-student" data-id="${s.__backendId}" data-written="${s.written_score}">
+                        <td class="px-4 py-3 text-center font-bold text-gray-400 rank-cell">#${i+1}</td>
+                        <td class="px-4 py-3">
+                            <div class="font-bold text-gray-800">${s.full_name}</div>
+                            <div class="text-xs text-gray-400">${s.exam_id}</div>
                         </td>
-                        <td class="px-2 py-4 text-center font-medium text-gray-500 bg-blue-50/10">${s.sci}</td>
-                        <td class="px-2 py-4 text-center font-medium text-gray-500 bg-red-50/10">${s.math}</td>
-                        <td class="px-2 py-4 text-center font-medium text-gray-500 bg-purple-50/10">${s.eng}</td>
-                        <td class="px-4 py-4 text-center font-bold text-gray-700 bg-gray-50 group-hover:bg-indigo-50/20 border-x border-gray-100/50">${s.written_score.toFixed(2)}</td>
+                        <td class="px-2 py-3 text-center text-gray-500">${s.science_score||0}</td>
+                        <td class="px-2 py-3 text-center text-gray-500">${s.math_score||0}</td>
+                        <td class="px-2 py-3 text-center text-gray-500">${s.english_score||0}</td>
+                        <td class="px-4 py-3 text-center font-bold text-gray-700 bg-gray-50">${s.written_score.toFixed(2)}</td>
                         
-                        <td class="px-4 py-4 text-center bg-indigo-50/30 border-x border-indigo-100/50 relative">
+                        <td class="px-4 py-3 text-center bg-indigo-50/30 border-x border-indigo-100">
                             <input type="number" min="0" max="${maxPractical}" step="0.01" 
-                                value="${s.practical_score || ''}" 
+                                value="${s.practical_score > 0 ? s.practical_score : ''}" 
                                 placeholder="0"
-                                onchange="updatePracticalScore('${s.__backendId}', this.value, ${maxPractical})"
-                                class="w-full px-3 py-2 text-center font-bold text-indigo-700 border-2 border-indigo-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none bg-white transition-all shadow-sm">
+                                class="input-practical w-full px-2 py-1 text-center font-bold text-indigo-700 border border-indigo-200 rounded focus:ring-2 focus:ring-indigo-400 outline-none bg-white"
+                                oninput="calculateRow(this, ${maxTotal}, ${maxPractical})"
+                            >
                         </td>
                         
-                        <td class="px-6 py-4 text-center">
-                            <span class="text-xl font-black text-gray-800 tracking-tight group-hover:text-indigo-900 transition-colors">${s.grand_total.toFixed(2)}</span>
+                        <td class="px-4 py-3 text-center font-black text-gray-800 text-lg cell-total">
+                            ${s.grand_total.toFixed(2)}
                         </td>
-                        <td class="px-6 py-4 text-center">
+                        <td class="px-4 py-3 text-center cell-status">
                             ${i < finalRoundQuota 
-                                ? `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-100 text-green-700 font-bold text-xs shadow-sm border border-green-200">
-                                     <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> ตัวจริง
-                                   </span>` 
-                                : `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-50 text-orange-600 font-bold text-xs border border-orange-100">
-                                     สำรอง #${i - finalRoundQuota + 1}
-                                   </span>`}
+                                ? `<span class="text-green-600 font-bold text-xs">ตัวจริง</span>` 
+                                : `<span class="text-amber-600 font-bold text-xs">สำรอง</span>`}
                         </td>
-                    </tr>`).join('') : `<tr><td colspan="9" class="text-center py-12 text-gray-400 flex flex-col items-center justify-center"><svg class="w-12 h-12 text-gray-200 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>ไม่มีผู้ผ่านการคัดเลือกในรอบนี้</td></tr>`}
+                    </tr>`).join('') : `<tr><td colspan="9" class="text-center py-8 text-gray-400">ไม่มีข้อมูลผู้ผ่านเกณฑ์</td></tr>`}
                 </tbody>
             </table>
         </div>
-        <div class="bg-gray-50 px-6 py-4 border-t border-gray-100 text-xs text-gray-400 text-right">
-            ระบบจะบันทึกคะแนนและจัดลำดับใหม่อัตโนมัติเมื่อท่านกรอกคะแนนเสร็จสิ้น
+        <div class="bg-yellow-50 px-6 py-3 border-t border-yellow-100 text-xs text-yellow-700 text-center font-bold">
+            ⚠️ กรุณากดปุ่ม "บันทึกคะแนนทั้งหมด" ด้านบนเพื่อยืนยันข้อมูลลงระบบ
         </div>
     </div>
     `;
@@ -1253,6 +1223,87 @@ function updatePracticalScore(id, value, max) {
             if(!res.isOk) console.error('บันทึกไม่สำเร็จ:', res.error);
         });
     }
+}
+    // คำนวณคะแนนรวมทันทีที่พิมพ์ (Frontend Only) ไม่ต้องโหลดหน้าใหม่
+function calculateRow(input, maxTotal, maxScore) {
+    let val = parseFloat(input.value);
+    if (isNaN(val)) val = 0;
+    if (val < 0) val = 0;
+    if (val > maxScore) {
+        alert(`คะแนนเกิน ${maxScore}`);
+        val = maxScore;
+        input.value = maxScore;
+    }
+
+    const row = input.closest('tr');
+    const written = parseFloat(row.dataset.written) || 0;
+    const total = written + val;
+
+    // อัปเดตตัวเลขรวมในตารางทันที
+    row.querySelector('.cell-total').textContent = total.toFixed(2);
+}
+
+// ฟังก์ชันบันทึกข้อมูล (ทำงานเมื่อกดปุ่มสีเขียว)
+function savePracticalScores() {
+    const inputs = document.querySelectorAll('.input-practical');
+    const updates = [];
+    
+    // 1. วนลูปเก็บข้อมูลจากทุกช่องที่กรอก
+    inputs.forEach(input => {
+        const row = input.closest('tr');
+        const id = row.dataset.id; // Backend ID
+        let score = parseFloat(input.value);
+        
+        // Validation: ถ้าไม่ใช่ตัวเลข หรือติดลบ ให้เป็น 0
+        if (isNaN(score)) score = 0;
+        if (score < 0) score = 0;
+
+        // ดึงข้อมูลนักเรียนคนนั้นจาก Memory (ข้อมูลเดิมที่ครบถ้วน)
+        const originalStudent = studentsData.find(s => s.__backendId === id);
+        
+        if (originalStudent) {
+            // อัปเดตคะแนนลงใน Memory
+            originalStudent.practical_score = score;
+
+            // *** จุดสำคัญที่แก้ไข ***
+            // สร้าง Object ใหม่โดยคัดลอกข้อมูลเดิมทั้งหมด (...) แล้วทับด้วยคะแนนใหม่
+            // เพื่อให้ Exam_ID, Name, Grade ฯลฯ ติดไปด้วย ไม่เป็น undefined
+            const payload = {
+                ...originalStudent,      // Copy ข้อมูลเดิมทั้งหมด (Exam ID, Name, etc.)
+                practical_score: score   // เอาคะแนนใหม่ทับลงไป
+            };
+
+            updates.push(payload);
+        }
+    });
+
+    if (updates.length === 0) {
+        showAlert('แจ้งเตือน', 'ไม่พบข้อมูลที่ต้องบันทึก');
+        return;
+    }
+
+    // 2. ส่งข้อมูลไป Google Apps Script (Batch Update)
+    showLoading('กำลังบันทึกคะแนน... (กรุณารอสักครู่)');
+    
+    // ใช้ Promise.all เพื่อยิง Update ทีละคน (ปลอดภัยที่สุดสำหรับ Google Apps Script ทั่วไป)
+    const promises = updates.map(u => window.dataSdk.update(u));
+
+    Promise.all(promises)
+        .then(() => {
+            setTimeout(() => {
+                hideLoading();
+                showAlert('สำเร็จ', 'บันทึกข้อมูลและคะแนนสอบปฏิบัติเรียบร้อยแล้ว');
+                // โหลดหน้าจอใหม่เพื่อให้มั่นใจว่าข้อมูลล่าสุดถูกต้อง
+                window.dataSdk.refresh().then(() => {
+                    renderAdminDashboard();
+                });
+            }, 1500);
+        })
+        .catch(err => {
+            hideLoading();
+            showAlert('ผิดพลาด', 'เกิดข้อผิดพลาดในการบันทึก: ' + err.message);
+            console.error(err);
+        });
 }
 </script>
 </body>
