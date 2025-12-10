@@ -652,7 +652,120 @@ function renderRankingView(allStudents) {
     </div>
     `;
 }
+
+// --- ฟังก์ชันส่งออกเป็นไฟล์ Word (.doc) ---
+function exportToWord() {
+    // 1. คำนวณข้อมูล (Logic เดียวกับ Clearing House)
+    const sortedAll = [...studentsData].sort((a,b) => b.total_score - a.total_score);
+    const currentQuotas = { ...quotas[adminTab] };
+    const counts = {};
+    Object.keys(currentQuotas).forEach(k => counts[k] = 0);
+    const allocationResult = {}; 
+
+    sortedAll.forEach(s => {
+        let choices = adminTab === 'm4' ? [s.choice_1, s.choice_2].filter(c=>c) : [s.choice_1, s.choice_2, s.choice_3].filter(c=>c);
+        for (const choiceName of choices) {
+            if (currentQuotas[choiceName] !== undefined && counts[choiceName] < currentQuotas[choiceName]) {
+                allocationResult[s.__backendId] = choiceName;
+                counts[choiceName]++;
+                break;
+            }
+        }
+    });
+
+    let renderList = [];
+    let showQuota = 0;
     
+    if (rankingTab === 'all') {
+        renderList = sortedAll.map((s, i) => ({ 
+            ...s, rank: i+1, status: allocationResult[s.__backendId] ? 'pass' : 'fail', got_program: allocationResult[s.__backendId] || '-'
+        }));
+    } else {
+        const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
+        showQuota = (quotas[adminTab] && quotas[adminTab][targetProgram]) || 0;
+        renderList = sortedAll.filter(s => {
+            if (allocationResult[s.__backendId] === targetProgram) return true;
+            const isSelectedHere = (s.choice_1 === targetProgram || s.choice_2 === targetProgram || (adminTab !== 'm4' && s.choice_3 === targetProgram));
+            const gotOtherPlace = allocationResult[s.__backendId] !== undefined;
+            return isSelectedHere && !gotOtherPlace;
+        }).map((s, i) => ({
+            ...s, rank: sortedAll.findIndex(x => x.__backendId === s.__backendId) + 1,
+            status: allocationResult[s.__backendId] === targetProgram ? 'pass' : 'fail'
+        }));
+    }
+
+    // 2. สร้างเนื้อหา HTML สำหรับ Word (จัดรูปแบบราชการ)
+    const tableRows = renderList.length > 0 ? renderList.map(s => `
+        <tr>
+            <td style="text-align:center;">${s.rank}</td>
+            <td style="text-align:center;">${s.exam_id}</td>
+            <td>${s.full_name}</td>
+            <td style="text-align:center;">${s.total_score.toFixed(2)}</td>
+            <td>${[s.choice_1, s.choice_2, (adminTab!=='m4'?s.choice_3:null)].filter(c=>c).map((c,i)=>`${i+1}. ${c}`).join('<br>')}</td>
+            <td style="text-align:center;">${rankingTab === 'all' ? (s.status === 'pass' ? `ติด ${s.got_program}` : `-`) : (s.status === 'pass' ? `ตัวจริง` : `สำรอง`)}</td>
+        </tr>
+    `).join('') : `<tr><td colspan="6" style="text-align:center;">ไม่มีข้อมูล</td></tr>`;
+
+    const title = `ประกาศผลสอบห้องเรียนพิเศษ ${adminTab==='m1'?'ม.1':'ม.4'} - ${rankingTab === 'all' ? 'รวม' : rankingTab}`;
+    
+    // HTML Template สำหรับ Word
+    const docContent = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head><meta charset='utf-8'><title>${title}</title>
+        <style>
+            body { font-family: 'TH Sarabun New', 'Angsana New', sans-serif; font-size: 16pt; }
+            table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+            td, th { border: 1px solid #000; padding: 5px; vertical-align: top; }
+            th { background-color: #f0f0f0; text-align: center; font-weight: bold; }
+            .header { text-align: center; margin-bottom: 20px; }
+            .footer { margin-top: 50px; width: 100%; text-align: center; }
+        </style>
+        </head><body>
+        
+        <div class="header">
+            <img src="https://img2.pic.in.th/pic/-69-1.png" width="80" height="auto"><br>
+            <b>ประกาศโรงเรียนบางสะพานวิทยา</b><br>
+            เรื่อง ผลการสอบคัดเลือกนักเรียนห้องเรียนพิเศษ ระดับชั้นมัธยมศึกษาปีที่ ${adminTab==='m1'?'๑':'๔'}<br>
+            ประจำปีการศึกษา ${window.elementSdk?.config?.admission_year || '๒๕๖๙'}<br>
+            <br>
+            (บัญชีรายชื่อ: ${rankingTab === 'all' ? 'คะแนนรวมทั้งหมด' : 'โครงการ ' + ({ 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab])})
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th width="10%">ลำดับ</th>
+                    <th width="15%">เลขประจำตัวสอบ</th>
+                    <th width="30%">ชื่อ - สกุล</th>
+                    <th width="10%">คะแนน</th>
+                    <th width="20%">โครงการที่เลือก</th>
+                    <th width="15%">สถานะ</th>
+                </tr>
+            </thead>
+            <tbody>${tableRows}</tbody>
+        </table>
+
+        <table style="border:none; margin-top:50px;">
+            <tr style="border:none;">
+                <td style="border:none; text-align:center; padding-top:40px;">ลงชื่อ.........................................กรรมการ<br>(.........................................)</td>
+                <td style="border:none; text-align:center; padding-top:40px;">ลงชื่อ.........................................นายทะเบียน<br>(.........................................)</td>
+                <td style="border:none; text-align:center; padding-top:40px;">ลงชื่อ.........................................ผู้อำนวยการ<br>(.........................................)</td>
+            </tr>
+        </table>
+        
+        </body></html>
+    `;
+
+    // สร้าง Blob และ Download
+    const blob = new Blob(['\ufeff', docContent], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${title}.doc`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
 function triggerSearch() { searchQuery = document.getElementById('search-input').value.trim(); renderAdminDashboard(); }
 
 function renderStudentView() {
