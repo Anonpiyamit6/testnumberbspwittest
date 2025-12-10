@@ -255,7 +255,7 @@ let adminViewMode = 'manage', rankingTab = 'all';
 // กำหนดโควตาการรับสมัคร (แก้ไขตัวเลขได้ที่นี่)
 const quotas = {
     m1: { 'S&M': 80, 'GATE': 60, 'EIS': 60 },
-    m4: { 'SME': 35, 'GATE': 40 } // สมมติของ ม.4 ไว้ก่อน
+    m4: { 'SME': 80, 'GATE': 60 } // สมมติของ ม.4 ไว้ก่อน
 };
   
 function getThaiGrade(code) { const map = { 'p4': 'ประถมศึกษาปีที่ 4', 'p5': 'ประถมศึกษาปีที่ 5', 'p6': 'ประถมศึกษาปีที่ 6', 'm3': 'มัธยมศึกษาปีที่ 3' }; return map[code.toLowerCase()] || code; }
@@ -443,6 +443,7 @@ function renderManageView(data, totalCount) {
 }
 
 // --- ฟังก์ชันย่อย 2: แสดงหน้าจัดลำดับ (Ranking View) ---
+// --- ฟังก์ชันย่อย 2: แสดงหน้าจัดลำดับ (Ranking View) ---
 function renderRankingView(allStudents) {
     // 1. เรียงลำดับคะแนนรวมทั้งหมดก่อน
     const sortedAll = [...allStudents].sort((a,b) => b.total_score - a.total_score);
@@ -454,15 +455,14 @@ function renderRankingView(allStudents) {
     if (rankingTab === 'all') {
         renderList = sortedAll.map((s, i) => ({ ...s, rank: i+1, status: 'list' })); // แสดงทั้งหมด
     } else {
-        // Logic กรองเฉพาะคนที่เลือกโครงการนี้ (ไม่ว่าจะอันดับ 1, 2, 3)
-        // ยกเว้น S&M อาจจะ strict ว่าต้องเลือกอันดับ 1 หรือไม่? (ในที่นี้ทำตามโจทย์คือดูว่าเลือกไหม)
+        // แปลง key จาก Tab เป็นชื่อโครงการจริง
         const targetProgram = {
             'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME'
         }[rankingTab];
 
         quotaLimit = (quotas[adminTab] && quotas[adminTab][targetProgram]) || 0;
 
-        // กรองคนที่เลือกโครงการนี้ในลำดับใดก็ได้
+        // กรองคนที่เลือกโครงการนี้ (ไม่ว่าจะเลือกอันดับ 1, 2, หรือ 3)
         const qualified = sortedAll.filter(s => 
             s.choice_1 === targetProgram || s.choice_2 === targetProgram || s.choice_3 === targetProgram
         );
@@ -477,18 +477,20 @@ function renderRankingView(allStudents) {
     }
 
     // --- ส่วนสร้าง HTML ---
-    // ปุ่มเลือก Tab ด้านบน
+    // ปุ่มเลือก Tab ด้านบน (ม.1)
     const tabsM1 = [
         { id: 'all', label: 'เรียงคะแนนรวม' },
         { id: 'sm', label: 'S&M (80)' },
         { id: 'gate', label: 'GATE (60)' },
         { id: 'eis', label: 'EIS (60)' }
     ];
+    // ปุ่มเลือก Tab ด้านบน (ม.4) - อัปเดตตัวเลขตรงนี้
     const tabsM4 = [
         { id: 'all', label: 'เรียงคะแนนรวม' },
-        { id: 'sme', label: 'SME' },
-        { id: 'gate', label: 'GATE' }
+        { id: 'sme', label: 'SME (80)' },  // แก้ป้ายชื่อ
+        { id: 'gate', label: 'GATE (60)' } // แก้ป้ายชื่อ
     ];
+    
     const currentTabs = adminTab === 'm1' ? tabsM1 : tabsM4;
 
     return `
