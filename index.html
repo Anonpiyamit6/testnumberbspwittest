@@ -514,7 +514,6 @@ function renderManageView(data, totalCount) {
 
 // --- ฟังก์ชันย่อย 2: แสดงหน้าจัดลำดับ (Ranking View) ---
 // --- ฟังก์ชันย่อย 2: แสดงหน้าจัดลำดับ (Ranking View) ---
-// แก้ไข: กลับมาใช้ดีไซน์ Modern สวยงามบนหน้าจอเว็บ แต่มีปุ่ม Export Word แบบราชการ
 function renderRankingView(allStudents) {
     // 1. เรียงลำดับคะแนน
     const sortedAll = [...allStudents].sort((a,b) => b.total_score - a.total_score);
@@ -562,7 +561,7 @@ function renderRankingView(allStudents) {
     const tabsM4 = [{ id: 'all', label: 'สรุปภาพรวม' }, { id: 'sme', label: 'SME (80)' }, { id: 'gate', label: 'GATE (60)' }];
     const currentTabs = adminTab === 'm1' ? tabsM1 : tabsM4;
 
-    // --- HTML Structure (ดีไซน์เดิม สวยงาม) ---
+    // --- HTML Structure ---
     return `
     <div class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
@@ -597,7 +596,7 @@ function renderRankingView(allStudents) {
                 </thead>
                 <tbody class="divide-y divide-gray-50 text-sm">
                     ${renderList.length > 0 ? renderList.map(s => `
-                    <tr class="${s.status==='pass' ? 'bg-green-50/50' : (s.status==='fail'?'bg-red-50/50':'')} hover:bg-gray-100 transition-colors">
+                    <tr class="${s.status==='pass' ? 'bg-green-50/50' : 'hover:bg-gray-50'} transition-colors">
                         <td class="px-6 py-4 text-center font-bold text-gray-500">#${s.rank}</td>
                         <td class="px-6 py-4">
                             <div class="font-bold text-gray-700">${s.exam_id}</div>
@@ -611,10 +610,12 @@ function renderRankingView(allStudents) {
                         </td>
                         <td class="px-6 py-4 text-center">
                             ${rankingTab === 'all' 
-                                ? (s.status === 'pass' ? `<span class="text-green-600 font-bold">ติด ${s.got_program}</span>` : `-`)
+                                ? (s.status === 'pass' 
+                                    ? `<span class="text-green-600 font-bold">ผ่านเกณฑ์ห้องเรียนโครงการ ${s.got_program}</span>` 
+                                    : `<span class="text-gray-400">ไม่ผ่านเกณฑ์</span>`)
                                 : (s.status === 'pass' 
-                                    ? `<span class="px-3 py-1 rounded-full bg-green-100 text-green-700 font-bold text-xs shadow-sm">ตัวจริง</span>` 
-                                    : `<span class="px-3 py-1 rounded-full bg-red-100 text-red-600 font-bold text-xs">ไม่ผ่าน</span>`)
+                                    ? `<span class="px-3 py-1 rounded-full bg-green-100 text-green-700 font-bold text-xs shadow-sm">ผ่านเกณฑ์</span>` 
+                                    : `<span class="px-3 py-1 rounded-full bg-red-100 text-red-600 font-bold text-xs">ไม่ผ่านเกณฑ์</span>`)
                             }
                         </td>
                     </tr>`).join('') : `<tr><td colspan="5" class="text-center py-8 text-gray-400">ไม่มีข้อมูล</td></tr>`}
@@ -625,7 +626,7 @@ function renderRankingView(allStudents) {
     `;
 }
 
-// --- ฟังก์ชันส่งออกเป็นไฟล์ Word (.doc) ---
+// --- ฟังก์ชันส่งออกเป็นไฟล์ Word (.doc) พร้อมข้อความทางการ ---
 function exportToWord() {
     // 1. คำนวณข้อมูล (Logic เดียวกับ Clearing House)
     const sortedAll = [...studentsData].sort((a,b) => b.total_score - a.total_score);
@@ -646,7 +647,6 @@ function exportToWord() {
     });
 
     let renderList = [];
-    let showQuota = 0;
     
     if (rankingTab === 'all') {
         renderList = sortedAll.map((s, i) => ({ 
@@ -654,7 +654,6 @@ function exportToWord() {
         }));
     } else {
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
-        showQuota = (quotas[adminTab] && quotas[adminTab][targetProgram]) || 0;
         renderList = sortedAll.filter(s => {
             if (allocationResult[s.__backendId] === targetProgram) return true;
             const isSelectedHere = (s.choice_1 === targetProgram || s.choice_2 === targetProgram || (adminTab !== 'm4' && s.choice_3 === targetProgram));
@@ -666,7 +665,7 @@ function exportToWord() {
         }));
     }
 
-    // 2. สร้างเนื้อหา HTML สำหรับ Word (จัดรูปแบบราชการ)
+    // 2. สร้างเนื้อหา HTML สำหรับ Word (แก้ไขคำพูดให้เป็นทางการ)
     const tableRows = renderList.length > 0 ? renderList.map(s => `
         <tr>
             <td style="text-align:center;">${s.rank}</td>
@@ -674,7 +673,12 @@ function exportToWord() {
             <td>${s.full_name}</td>
             <td style="text-align:center;">${s.total_score.toFixed(2)}</td>
             <td>${[s.choice_1, s.choice_2, (adminTab!=='m4'?s.choice_3:null)].filter(c=>c).map((c,i)=>`${i+1}. ${c}`).join('<br>')}</td>
-            <td style="text-align:center;">${rankingTab === 'all' ? (s.status === 'pass' ? `ติด ${s.got_program}` : `-`) : (s.status === 'pass' ? `ตัวจริง` : `สำรอง`)}</td>
+            <td style="text-align:center;">
+                ${rankingTab === 'all' 
+                    ? (s.status === 'pass' ? `ผ่านเกณฑ์ห้องเรียนโครงการ ${s.got_program}` : `ไม่ผ่านเกณฑ์`) 
+                    : (s.status === 'pass' ? `ผ่านเกณฑ์` : `ไม่ผ่านเกณฑ์`)
+                }
+            </td>
         </tr>
     `).join('') : `<tr><td colspan="6" style="text-align:center;">ไม่มีข้อมูล</td></tr>`;
 
@@ -738,6 +742,7 @@ function exportToWord() {
     link.click();
     document.body.removeChild(link);
 }
+    
 function triggerSearch() { searchQuery = document.getElementById('search-input').value.trim(); renderAdminDashboard(); }
 
 function renderStudentView() {
