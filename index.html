@@ -566,10 +566,7 @@ function renderManageView(data, totalCount) {
 // --- ฟังก์ชันย่อย 2: แสดงหน้าจัดลำดับ (Ranking View) ---
 // --- ฟังก์ชันย่อย 2: แสดงหน้าจัดลำดับ (Ranking View) ---
 function renderRankingView(allStudents) {
-    // 1. เรียงลำดับคะแนน
     const sortedAll = [...allStudents].sort((a,b) => b.total_score - a.total_score);
-
-    // 2. Logic Clearing House
     const currentQuotas = { ...quotas[adminTab] };
     const counts = {};
     Object.keys(currentQuotas).forEach(k => counts[k] = 0);
@@ -586,7 +583,6 @@ function renderRankingView(allStudents) {
         }
     });
 
-    // 3. เตรียมข้อมูล
     let renderList = [];
     let showQuota = 0;
     
@@ -612,7 +608,6 @@ function renderRankingView(allStudents) {
     const tabsM4 = [{ id: 'all', label: 'สรุปภาพรวม' }, { id: 'sme', label: 'SME (80)' }, { id: 'gate', label: 'GATE (60)' }];
     const currentTabs = adminTab === 'm1' ? tabsM1 : tabsM4;
 
-    // --- HTML Structure ---
     return `
     <div class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
@@ -622,10 +617,16 @@ function renderRankingView(allStudents) {
             </div>
         </div>
         
-        <button onclick="exportToWord()" class="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-lime-500 to-green-600 hover:from-lime-600 hover:to-green-700 text-white rounded-xl font-bold shadow-lg shadow-lime-200/50 transition-all active:scale-95">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-            ดาวน์โหลดรายงาน (.doc)
-        </button>
+        <div class="flex gap-2">
+            <button onclick="exportRankingToExcel()" class="flex items-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg shadow-green-200 transition-all active:scale-95">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Excel
+            </button>
+            <button onclick="exportToWord()" class="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-lime-500 to-green-600 hover:from-lime-600 hover:to-green-700 text-white rounded-xl font-bold shadow-lg shadow-lime-200/50 transition-all active:scale-95">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Word (.doc)
+            </button>
+        </div>
     </div>
 
     <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100">
@@ -633,7 +634,6 @@ function renderRankingView(allStudents) {
             <h3 class="font-bold text-gray-700">${rankingTab === 'all' ? 'รายชื่อทั้งหมด' : 'รายชื่อผู้มีสิทธิ์'}</h3>
             ${rankingTab !== 'all' ? `<div class="text-xs font-bold text-gray-400">ผ่าน: ${renderList.filter(x=>x.status==='pass').length} / ${showQuota}</div>` : ''}
         </div>
-        
         <div class="overflow-x-auto">
             <table class="w-full text-left min-w-[700px]">
                 <thead class="bg-white text-gray-600 text-sm uppercase font-bold border-b border-gray-100">
@@ -661,9 +661,7 @@ function renderRankingView(allStudents) {
                         </td>
                         <td class="px-6 py-4 text-center">
                             ${rankingTab === 'all' 
-                                ? (s.status === 'pass' 
-                                    ? `<span class="text-green-600 font-bold">ผ่านเกณฑ์โครงการ ${s.got_program}</span>` 
-                                    : `<span class="text-gray-400">ไม่ผ่านเกณฑ์</span>`)
+                                ? (s.status === 'pass' ? `<span class="text-green-600 font-bold">ผ่านเกณฑ์โครงการ ${s.got_program}</span>` : `<span class="text-gray-400">ไม่ผ่านเกณฑ์</span>`)
                                 : (s.status === 'pass' 
                                     ? `<span class="px-3 py-1 rounded-full bg-green-100 text-green-700 font-bold text-xs shadow-sm">ผ่านเกณฑ์</span>` 
                                     : `<span class="px-3 py-1 rounded-full bg-red-100 text-red-600 font-bold text-xs">ไม่ผ่านเกณฑ์</span>`)
@@ -1334,11 +1332,125 @@ function saveSingleInterviewScore(id, maxScore) {
         }
     });
 }
+// --- ฟังก์ชัน Export Excel สำหรับหน้าประกาศผล/จัดลำดับ ---
+function exportRankingToExcel() {
+    // 1. คำนวณ Logic Clearing House
+    const sortedAll = [...studentsData].sort((a,b) => b.total_score - a.total_score);
+    const currentQuotas = { ...quotas[adminTab] };
+    const counts = {};
+    Object.keys(currentQuotas).forEach(k => counts[k] = 0);
+    const allocationResult = {}; 
+
+    sortedAll.forEach(s => {
+        let choices = adminTab === 'm4' ? [s.choice_1, s.choice_2].filter(c=>c) : [s.choice_1, s.choice_2, s.choice_3].filter(c=>c);
+        for (const choiceName of choices) {
+            if (currentQuotas[choiceName] !== undefined && counts[choiceName] < currentQuotas[choiceName]) {
+                allocationResult[s.__backendId] = choiceName;
+                counts[choiceName]++;
+                break;
+            }
+        }
+    });
+
+    let dataList = [];
+    const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
+
+    if (rankingTab === 'all') {
+        dataList = sortedAll;
+    } else {
+        dataList = sortedAll.filter(s => {
+            if (allocationResult[s.__backendId] === targetProgram) return true;
+            const isSelectedHere = (s.choice_1 === targetProgram || s.choice_2 === targetProgram || (adminTab !== 'm4' && s.choice_3 === targetProgram));
+            const gotOtherPlace = allocationResult[s.__backendId] !== undefined;
+            return isSelectedHere && !gotOtherPlace;
+        });
+    }
+
+    // 2. แปลงข้อมูลเป็น Format Excel
+    const excelRows = dataList.map((s, i) => {
+        const statusText = rankingTab === 'all' 
+            ? (allocationResult[s.__backendId] ? `ติด ${allocationResult[s.__backendId]}` : 'ไม่ผ่าน')
+            : (allocationResult[s.__backendId] === targetProgram ? 'ตัวจริง' : 'สำรอง');
+
+        return {
+            'ลำดับ': i + 1,
+            'เลขประจำตัวสอบ': s.exam_id,
+            'ชื่อ-นามสกุล': s.full_name,
+            'คะแนนรวม': s.total_score,
+            'อันดับ 1': s.choice_1 || '-',
+            'อันดับ 2': s.choice_2 || '-',
+            'อันดับ 3': (adminTab === 'm1' ? s.choice_3 : '-') || '-',
+            'ผลการคัดเลือก': statusText
+        };
+    });
+
+    // 3. สร้างไฟล์
+    const ws = XLSX.utils.json_to_sheet(excelRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Ranking");
+    XLSX.writeFile(wb, `ประกาศผลสอบ_${adminTab}_${rankingTab}.xlsx`);
+}
+
+// --- ฟังก์ชัน Export Excel สำหรับหน้าบันทึกคะแนนปฏิบัติ ---
+function exportInterviewToExcel() {
+    // 1. Logic ดึงข้อมูลเหมือนหน้าจอ Interview
+    const sortedForClearing = [...studentsData].sort((a,b) => (b.total_score||0) - (a.total_score||0));
+    const currentQuotas = { ...quotas[adminTab] };
+    const counts = {};
+    Object.keys(currentQuotas).forEach(k => counts[k] = 0);
+    const allocationResult = {}; 
+
+    sortedForClearing.forEach(s => {
+        let choices = adminTab === 'm4' ? [s.choice_1, s.choice_2].filter(c=>c) : [s.choice_1, s.choice_2, s.choice_3].filter(c=>c);
+        for (const choiceName of choices) {
+            if (currentQuotas[choiceName] !== undefined && counts[choiceName] < currentQuotas[choiceName]) {
+                allocationResult[s.__backendId] = choiceName;
+                counts[choiceName]++;
+                break;
+            }
+        }
+    });
+
+    const targetProgramName = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
+    const finalRoundQuota = 40;
+
+    let interviewList = studentsData.filter(s => allocationResult[s.__backendId] === targetProgramName);
+    interviewList = interviewList.map(s => {
+        const sci = parseFloat(s.science_score) || 0;
+        const math = parseFloat(s.math_score) || 0;
+        const eng = parseFloat(s.english_score) || 0;
+        const written = parseFloat(s.total_score) || 0;
+        const practical = parseFloat(s.practical_score) || 0;
+        return { 
+            ...s, sci, math, eng, written_score: written, 
+            practical_score: practical, grand_total: written + practical 
+        };
+    }).sort((a, b) => b.grand_total - a.grand_total);
+
+    // 2. แปลงข้อมูลเป็น Format Excel
+    const excelRows = interviewList.map((s, i) => ({
+        'ลำดับที่': i + 1,
+        'รหัสสอบ': s.exam_id,
+        'ชื่อ-สกุล': s.full_name,
+        'วิทย์': s.sci,
+        'คณิต': s.math,
+        'อังกฤษ': s.eng,
+        'รวมข้อเขียน': s.written_score,
+        'คะแนนปฏิบัติ': s.practical_score,
+        'รวมสุทธิ': s.grand_total,
+        'สถานะ': i < finalRoundQuota ? 'ตัวจริง' : `สำรอง ${i - finalRoundQuota + 1}`
+    }));
+
+    // 3. สร้างไฟล์
+    const ws = XLSX.utils.json_to_sheet(excelRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Scores");
+    XLSX.writeFile(wb, `คะแนนสอบปฏิบัติ_${targetProgramName}_${adminTab}.xlsx`);
+}
 window.addEventListener('load', () => { window.dataSdk.init(dataHandler); render(); });
 // --- ฟังก์ชันย่อย 3: หน้าบันทึกคะแนนปฏิบัติ/สัมภาษณ์ (ฉบับปรับปรุง: สวยงาม + โชว์คะแนนดิบ + แก้บั๊กชื่อหาย) ---
 // --- ฟังก์ชันย่อย 3: หน้าตารางรายชื่อผู้มีสิทธิ์สอบปฏิบัติ (ธีมสีเขียว/ระบบหลัก) ---
 function renderInterviewView(allStudents) {
-    // 1. Logic Clearing House (หาผู้มีสิทธิ์จากคะแนนข้อเขียน)
     const sortedForClearing = [...allStudents].sort((a,b) => (b.total_score||0) - (a.total_score||0));
     const currentQuotas = { ...quotas[adminTab] };
     const counts = {};
@@ -1356,7 +1468,6 @@ function renderInterviewView(allStudents) {
         }
     });
 
-    // 2. ตั้งค่า Tab
     const availablePrograms = adminTab === 'm1' ? ['sm', 'gate', 'eis'] : ['sme', 'gate'];
     if (rankingTab === 'all' || !availablePrograms.includes(rankingTab)) rankingTab = availablePrograms[0];
 
@@ -1365,7 +1476,6 @@ function renderInterviewView(allStudents) {
     const maxTotal = 100 + maxPractical;
     const finalRoundQuota = 40; 
 
-    // 3. กรองรายชื่อ & เรียงลำดับ
     let interviewList = allStudents.filter(s => allocationResult[s.__backendId] === targetProgramName);
     interviewList = interviewList.map(s => {
         const sci = parseFloat(s.science_score) || 0;
@@ -1373,12 +1483,7 @@ function renderInterviewView(allStudents) {
         const eng = parseFloat(s.english_score) || 0;
         const written = parseFloat(s.total_score) || 0;
         const practical = parseFloat(s.practical_score) || 0;
-        return { 
-            ...s, sci, math, eng, 
-            written_score: written, 
-            practical_score: practical, 
-            grand_total: written + practical 
-        };
+        return { ...s, sci, math, eng, written_score: written, practical_score: practical, grand_total: written + practical };
     }).sort((a, b) => b.grand_total - a.grand_total);
 
     const tabs = adminTab === 'm1' 
@@ -1390,33 +1495,29 @@ function renderInterviewView(allStudents) {
         <div>
             <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">บันทึกคะแนนปฏิบัติ ${adminTab==='m1'?'ม.1':'ม.4'}</h1>
             <div class="flex flex-wrap gap-2">
-                ${tabs.map(t => `
-                    <button onclick="rankingTab='${t.id}';renderAdminDashboard();" 
-                        class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border shadow-sm ${rankingTab===t.id ? 'bg-lime-500 text-white border-lime-500 shadow-lg shadow-lime-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}">
-                        ${t.label}
-                    </button>
-                `).join('')}
+                ${tabs.map(t => `<button onclick="rankingTab='${t.id}';renderAdminDashboard();" class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border shadow-sm ${rankingTab===t.id ? 'bg-lime-500 text-white border-lime-500 shadow-lg shadow-lime-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}">${t.label}</button>`).join('')}
             </div>
         </div>
         
-        <button onclick="exportInterviewToWord()" class="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-lime-500 to-green-600 hover:from-lime-600 hover:to-green-700 text-white rounded-xl font-bold shadow-lg shadow-lime-200/50 transition-all active:scale-95">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-            ดาวน์โหลดใบสรุปคะแนน (.doc)
-        </button>
+        <div class="flex gap-2">
+            <button onclick="exportInterviewToExcel()" class="flex items-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg shadow-green-200 transition-all active:scale-95 animate-pulse">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Excel
+            </button>
+            <button onclick="exportInterviewToWord()" class="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-lime-500 to-green-600 hover:from-lime-600 hover:to-green-700 text-white rounded-xl font-bold shadow-lg shadow-lime-200/50 transition-all active:scale-95 animate-pulse">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Word (.doc)
+            </button>
+        </div>
     </div>
 
     <div class="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
         <div class="p-6 bg-lime-50/50 border-b border-lime-100 flex justify-between items-center">
             <div>
-                <h3 class="font-bold text-lime-800 text-lg flex items-center gap-2">
-                    <span class="w-2 h-6 bg-lime-500 rounded-full inline-block"></span>
-                    โครงการ ${targetProgramName}
-                </h3>
+                <h3 class="font-bold text-lime-800 text-lg flex items-center gap-2"><span class="w-2 h-6 bg-lime-500 rounded-full inline-block"></span> โครงการ ${targetProgramName}</h3>
                 <p class="text-xs text-lime-600 mt-1 pl-4">คะแนนเต็ม: ข้อเขียน (100) + ปฏิบัติ (${maxPractical}) = ${maxTotal}</p>
             </div>
-            <div class="text-sm font-bold text-gray-500 bg-white px-4 py-2 rounded-xl shadow-sm">
-                จำนวนผู้มีสิทธิ์: <span class="text-lime-600 text-lg">${interviewList.length}</span> คน
-            </div>
+            <div class="text-sm font-bold text-gray-500 bg-white px-4 py-2 rounded-xl shadow-sm">จำนวนผู้มีสิทธิ์: <span class="text-lime-600 text-lg">${interviewList.length}</span> คน</div>
         </div>
         
         <div class="overflow-x-auto">
@@ -1447,30 +1548,19 @@ function renderInterviewView(allStudents) {
                         <td class="px-2 py-4 text-center font-medium text-gray-500">${s.math}</td>
                         <td class="px-2 py-4 text-center font-medium text-gray-500">${s.eng}</td>
                         <td class="px-4 py-4 text-center font-bold text-gray-700 bg-gray-50 group-hover:bg-lime-50/20">${s.written_score.toFixed(2)}</td>
-                        <td class="px-4 py-4 text-center font-bold text-lime-700 bg-lime-50/20">
-                            ${s.practical_score > 0 ? s.practical_score.toFixed(2) : '-'}
-                        </td>
-                        <td class="px-4 py-4 text-center font-black text-gray-800 text-lg">
-                            ${s.grand_total.toFixed(2)}
+                        <td class="px-4 py-4 text-center font-bold text-lime-700 bg-lime-50/20">${s.practical_score > 0 ? s.practical_score.toFixed(2) : '-'}</td>
+                        <td class="px-4 py-4 text-center font-black text-gray-800 text-lg">${s.grand_total.toFixed(2)}</td>
+                        <td class="px-4 py-4 text-center">
+                            ${i < finalRoundQuota ? `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-100 text-green-700 font-bold text-xs border border-green-200">ตัวจริง</span>` : `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-50 text-orange-600 font-bold text-xs border border-orange-100">สำรอง #${i - finalRoundQuota + 1}</span>`}
                         </td>
                         <td class="px-4 py-4 text-center">
-                            ${i < finalRoundQuota 
-                                ? `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-100 text-green-700 font-bold text-xs border border-green-200">ตัวจริง</span>` 
-                                : `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-50 text-orange-600 font-bold text-xs border border-orange-100">สำรอง #${i - finalRoundQuota + 1}</span>`}
-                        </td>
-                        <td class="px-4 py-4 text-center">
-                            <button onclick="showInterviewForm('${s.__backendId}', ${maxPractical}, '${targetProgramName}')" 
-                                class="px-4 py-2 bg-lime-100 hover:bg-lime-200 text-lime-700 rounded-xl text-xs font-bold shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2 mx-auto border border-lime-200">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                                ให้คะแนน
-                            </button>
+                            <button onclick="showInterviewForm('${s.__backendId}', ${maxPractical}, '${targetProgramName}')" class="px-4 py-2 bg-lime-100 hover:bg-lime-200 text-lime-700 rounded-xl text-xs font-bold shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2 mx-auto border border-lime-200"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>ให้คะแนน</button>
                         </td>
                     </tr>`).join('') : `<tr><td colspan="10" class="text-center py-12 text-gray-400">ไม่มีข้อมูล</td></tr>`}
                 </tbody>
             </table>
         </div>
     </div>
-    
     <div id="interview-modal-container"></div>
     `;
 }
