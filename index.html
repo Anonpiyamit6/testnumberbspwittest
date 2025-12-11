@@ -841,7 +841,6 @@ function renderStudentView() {
     const thaiGrade = getThaiGrade(currentUser.grade_level);
     const grade = currentUser.grade_level.toLowerCase();
 
-    // เงื่อนไขการแสดงผล (Logic เดิม)
     const showProjectsSection = !['p4', 'p5'].includes(grade); 
     const showRank3 = !['m3', 'm4'].includes(grade); 
 
@@ -853,7 +852,8 @@ function renderStudentView() {
 
             <div class="bg-white rounded-[2rem] p-8 mb-6 shadow-xl relative overflow-hidden border border-lime-100 text-center">
                 <div class="relative z-10 flex flex-col items-center">
-                    <img src="https://img5.pic.in.th/file/secure-sv1/-69-1112b7dae5160e09f.png" alt="Logo" class="w-50 h-auto mb-5 drop-shadow-md">
+                    
+                    <img src="https://img5.pic.in.th/file/secure-sv1/-69-1112b7dae5160e09f.png" alt="Logo" class="w-56 h-auto mb-6 drop-shadow-md hover:scale-105 transition-transform duration-500">
                     
                     <h1 class="text-xl md:text-2xl font-bold text-lime-900 leading-tight mb-2">
                         ประกาศผลคะแนนการสอบแข่งขันทักษะวิชาการเพชรราชพฤกษ์
@@ -861,13 +861,13 @@ function renderStudentView() {
                     <h2 class="text-lg md:text-xl font-bold text-lime-900 leading-tight mb-2">
                         ปีการศึกษา 2569
                     </h2>
-                    <p class="text-lime-800 font-medium">
+                    <p class="text-lime-800 font-medium text-lg">
                         โรงเรียนบางสะพานวิทยา จังหวัดประจวบคีรีขันธ์
                     </p>
                 </div>
 
                 <div class="absolute bottom-4 right-4 z-20">
-                    <button onclick="currentView='login';render()" class="bg-red-50 hover:bg-red-500 text-red-500 hover:text-white px-4 py-2 rounded-full text-xs font-bold transition-all border border-red-100 flex items-center gap-2">
+                    <button onclick="currentView='login';render()" class="bg-red-50 hover:bg-red-500 text-red-500 hover:text-white px-4 py-2 rounded-full text-xs font-bold transition-all border border-red-100 flex items-center gap-2 shadow-sm">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
                         ออกจากระบบ
                     </button>
@@ -896,35 +896,22 @@ function renderStudentView() {
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div class="bg-white border-2 border-lime-100 p-4 rounded-2xl flex items-center gap-4 shadow-sm relative overflow-hidden">
                         <div class="bg-lime-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 shadow-md">1</div>
-                        <div class="flex flex-col z-10">
-                            <span class="text-[10px] text-gray-400 font-bold uppercase">อันดับที่ 1</span>
-                            <span class="font-bold text-gray-700 text-lg">${currentUser.choice_1 || '-'}</span>
-                        </div>
+                        <div class="flex flex-col z-10"><span class="text-[10px] text-gray-400 font-bold uppercase">อันดับที่ 1</span><span class="font-bold text-gray-700 text-lg">${currentUser.choice_1 || '-'}</span></div>
                         <div class="absolute right-[-10px] bottom-[-10px] text-lime-50 opacity-50 font-black text-6xl pointer-events-none">1</div>
                     </div>
-                    
                     <div class="bg-white border-2 border-lime-100 p-4 rounded-2xl flex items-center gap-4 shadow-sm relative overflow-hidden">
                         <div class="bg-lime-400 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 shadow-md">2</div>
-                        <div class="flex flex-col z-10">
-                            <span class="text-[10px] text-gray-400 font-bold uppercase">อันดับที่ 2</span>
-                            <span class="font-bold text-gray-700 text-lg">${currentUser.choice_2 || '-'}</span>
-                        </div>
+                        <div class="flex flex-col z-10"><span class="text-[10px] text-gray-400 font-bold uppercase">อันดับที่ 2</span><span class="font-bold text-gray-700 text-lg">${currentUser.choice_2 || '-'}</span></div>
                         <div class="absolute right-[-10px] bottom-[-10px] text-lime-50 opacity-50 font-black text-6xl pointer-events-none">2</div>
                     </div>
-
                     ${showRank3 ? `
                     <div class="bg-white border-2 border-lime-100 p-4 rounded-2xl flex items-center gap-4 shadow-sm relative overflow-hidden ${!currentUser.choice_3 ? 'opacity-50 grayscale' : ''}">
                         <div class="bg-lime-300 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 shadow-md">3</div>
-                        <div class="flex flex-col z-10">
-                            <span class="text-[10px] text-gray-400 font-bold uppercase">อันดับที่ 3</span>
-                            <span class="font-bold text-gray-700 text-lg">${currentUser.choice_3 || '-'}</span>
-                        </div>
+                        <div class="flex flex-col z-10"><span class="text-[10px] text-gray-400 font-bold uppercase">อันดับที่ 3</span><span class="font-bold text-gray-700 text-lg">${currentUser.choice_3 || '-'}</span></div>
                         <div class="absolute right-[-10px] bottom-[-10px] text-lime-50 opacity-50 font-black text-6xl pointer-events-none">3</div>
-                    </div>
-                    ` : ''}
+                    </div>` : ''}
                 </div>
-            </div>
-            ` : ''}
+            </div>` : ''}
 
             <h3 class="text-gray-600 font-bold text-lg mb-4 ml-2 flex items-center gap-2"><svg class="w-5 h-5 text-lime-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>คะแนนรายวิชา</h3>
 
