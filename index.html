@@ -445,22 +445,7 @@ text-[13px] min-[360px]:text-[14.5px] min-[390px]:text-[16px] sm:text-xl sm:mx-0
 function toggleLogin(mode) { document.getElementById('login-buttons').classList.add('hidden'); document.getElementById('login-form-container').classList.remove('hidden'); if(mode==='student'){document.getElementById('input-student').classList.remove('hidden');document.getElementById('input-admin').classList.add('hidden');}else{document.getElementById('input-student').classList.add('hidden');document.getElementById('input-admin').classList.remove('hidden');} }
 function resetLogin() { document.getElementById('login-form-container').classList.add('hidden'); document.getElementById('login-buttons').classList.remove('hidden'); }
 function handleLogin(e) { e.preventDefault(); const isStudent = !document.getElementById('input-student').classList.contains('hidden'); if(isStudent){ const id = document.getElementById('login-id').value.trim(); const user = studentsData.find(s => String(s.national_id).trim() === String(id)); if(user){currentUser = user; currentView = 'student'; render();}else showAlert('ไม่พบข้อมูล', 'ไม่พบเลขบัตรประชาชนนี้ในระบบ'); }else{ if(document.getElementById('admin-user').value === 'admin' && document.getElementById('admin-pass').value === 'admin11275'){currentView='admin';render();}else showAlert('ผิดพลาด', 'ชื่อผู้ใช้หรือรหัสผ่านผิด'); } }
-function() {
-    const style = document.createElement('style');
-    style.textContent = `
-        /* ซ่อนลูกศรขึ้น/ลง (Spin Buttons) ในช่องกรอกตัวเลขใน Modal */
-        #input-score-modal::-webkit-outer-spin-button,
-        #input-score-modal::-webkit-inner-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
 
-        #input-score-modal {
-            -moz-appearance: textfield; /* สำหรับ Firefox */
-        }
-    `;
-    document.head.appendChild(style);
-})();
 function renderAdminDashboard() {
     // 1. กรองนักเรียนตามระดับชั้น (ม.1 หรือ ม.4)
     const m1 = studentsData.filter(s => ['p4','p5','p6','m1'].includes(s.grade_level));
