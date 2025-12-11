@@ -491,18 +491,26 @@ function renderAdminDashboard() {
     const m4 = studentsData.filter(s => ['m3','m4'].includes(s.grade_level));
     let activeData = adminTab === 'm1' ? m1 : m4;
 
-    // --- คำนวณสถิติ (แก้ไขใหม่) ---
+    // --- คำนวณสถิติ (Updated) ---
     const totalStudents = activeData.length;
 
-    // ดึงคะแนนรวมของทุกคน (ข้อเขียน + ปฏิบัติ)
+    // ดึงคะแนนรวมสุทธิของทุกคน (ข้อเขียน + ปฏิบัติ)
     const allScores = activeData.map(s => (parseFloat(s.total_score)||0) + (parseFloat(s.practical_score)||0));
     
-    // กรองเอาเฉพาะคนที่มีคะแนน (> 0) เพื่อไม่ให้คนขาดสอบ (0 คะแนน) มาดึงค่าต่ำสุด
+    // กรองเฉพาะคนที่มีคะแนน (> 0) เพื่อความแม่นยำทางสถิติ
     const validScores = allScores.filter(score => score > 0);
 
-    // หาค่าสูงสุด / ต่ำสุด
+    // 1. หาค่าสูงสุด (Max)
     const maxScore = validScores.length > 0 ? Math.max(...validScores) : 0;
+    
+    // 2. หาค่าต่ำสุด (Min)
     const minScore = validScores.length > 0 ? Math.min(...validScores) : 0;
+
+    // 3. *** หาค่าเฉลี่ย (Average) ***
+    // ผลรวมทั้งหมด / จำนวนคนที่มีคะแนน
+    const sumScore = validScores.reduce((a, b) => a + b, 0);
+    const avgScore = validScores.length > 0 ? (sumScore / validScores.length) : 0;
+
 
     // Logic การกรองสำหรับหน้า Manage (เหมือนเดิม)
     let displayData = activeData;
@@ -582,8 +590,8 @@ function renderAdminDashboard() {
 
                     <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col relative overflow-hidden group">
                         <div class="absolute right-0 top-0 w-16 h-16 bg-orange-50 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-110"></div>
-                        <span class="text-xs text-gray-400 font-bold uppercase tracking-wider z-10">ระดับชั้น</span>
-                        <span class="text-3xl font-black text-gray-800 mt-1 z-10">${adminTab.toUpperCase()}</span>
+                        <span class="text-xs text-gray-400 font-bold uppercase tracking-wider z-10">คะแนนเฉลี่ย</span>
+                        <span class="text-3xl font-black text-gray-800 mt-1 z-10">${avgScore.toFixed(2)}</span>
                         <div class="w-8 h-1 bg-orange-500 rounded-full mt-3 z-10"></div>
                     </div>
                 </div>
@@ -609,7 +617,6 @@ function renderAdminDashboard() {
     </div>
     `;
 }
-
 // --- ฟังก์ชันย่อย 1: แสดงหน้าจัดการข้อมูล (ตารางเดิม) ---
 function renderManageView(data, totalCount) {
     return `
