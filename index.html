@@ -391,7 +391,20 @@ const practicalMaxScores = {
     'SME': 100   // SME (เต็ม 100) -> รวม 200
 };
 function getThaiGrade(code) { const map = { 'p4': 'ประถมศึกษาปีที่ 4', 'p5': 'ประถมศึกษาปีที่ 5', 'p6': 'ประถมศึกษาปีที่ 6', 'm3': 'มัธยมศึกษาปีที่ 3' }; return map[code.toLowerCase()] || code; }
-function toggleSidebar() { const sb=document.getElementById('sidebar'), ov=document.getElementById('sidebar-overlay'); isSidebarOpen=!isSidebarOpen; if(isSidebarOpen){sb.classList.remove('-translate-x-full');ov.classList.remove('hidden');}else{sb.classList.add('-translate-x-full');ov.classList.add('hidden');} }
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    
+    // สลับคลาสเพื่อเลื่อนเมนูเข้า/ออก
+    if (sidebar) {
+        sidebar.classList.toggle('-translate-x-full');
+    }
+    
+    // เปิด/ปิด พื้นหลังสีดำจางๆ
+    if (overlay) {
+        overlay.classList.toggle('hidden');
+    }
+}
 
 function showAlert(t, m) { document.getElementById('alert-title').textContent = t; document.getElementById('alert-message').textContent = m; document.getElementById('alert-modal').classList.remove('hidden-force'); }
 function closeAlert() { document.getElementById('alert-modal').classList.add('hidden-force'); }
@@ -478,12 +491,10 @@ function renderAdminDashboard() {
     const m4 = studentsData.filter(s => ['m3','m4'].includes(s.grade_level));
     let activeData = adminTab === 'm1' ? m1 : m4;
 
-    // คำนวณสถิติเบื้องต้นเพื่อแสดงใน Dashboard
     const totalStudents = activeData.length;
     const hasScore = activeData.filter(s => s.total_score > 0).length;
     const hasPractical = activeData.filter(s => s.practical_score > 0).length;
 
-    // Logic การกรองสำหรับหน้า Manage
     let displayData = activeData;
     if(adminViewMode === 'manage' && searchQuery) {
         displayData = displayData.filter(s => s.full_name.includes(searchQuery) || String(s.exam_id).includes(searchQuery) || String(s.national_id).includes(searchQuery));
@@ -492,18 +503,22 @@ function renderAdminDashboard() {
 
     // 2. Render HTML
     document.getElementById('app').innerHTML = `
-    <div class="h-screen flex bg-[#f8fafc] font-sarabun overflow-hidden">
+    <div class="h-screen flex bg-[#f8fafc] font-sarabun overflow-hidden relative">
         
-        <aside class="hidden md:flex w-72 flex-col bg-white border-r border-gray-100 shadow-xl z-20">
-            <div class="h-20 flex items-center gap-3 px-6 border-b border-gray-50">
+        <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 w-72 flex flex-col bg-white border-r border-gray-100 shadow-2xl transform -translate-x-full transition-transform duration-300 md:translate-x-0 md:static md:shadow-xl">
+            
+            <div class="h-20 flex items-center gap-3 px-6 border-b border-gray-50 shrink-0">
                 <img src="https://img5.pic.in.th/file/secure-sv1/-69-1112b7dae5160e09f.png" class="w-10 h-10 drop-shadow-sm">
                 <div>
                     <h1 class="text-lg font-bold text-gray-800 leading-tight">ระบบรับสมัคร</h1>
                     <p class="text-xs text-lime-600 font-bold">Admin Panel</p>
                 </div>
+                <button onclick="toggleSidebar()" class="md:hidden ml-auto text-gray-400 hover:text-red-500">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
             </div>
 
-            <div class="p-6 pb-2">
+            <div class="p-6 pb-2 shrink-0">
                 <div class="bg-gradient-to-br from-lime-50 to-green-50 rounded-2xl p-4 border border-lime-100 flex items-center gap-3 shadow-sm">
                     <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lime-600 font-bold shadow-sm border border-lime-50">AD</div>
                     <div>
@@ -516,12 +531,12 @@ function renderAdminDashboard() {
             <div class="flex-1 overflow-y-auto px-4 py-4 space-y-1">
                 <p class="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">เลือกกลุ่มข้อมูล</p>
                 
-                <button onclick="adminTab='m1';renderAdminDashboard();" 
+                <button onclick="adminTab='m1';renderAdminDashboard();toggleSidebar();" 
                     class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${adminTab==='m1' ? 'bg-lime-50 text-lime-700 font-bold border-l-4 border-lime-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}">
                     <div class="w-2 h-2 rounded-full ${adminTab==='m1'?'bg-lime-500':'bg-gray-300'}"></div>
                     ข้อมูล ม.1
                 </button>
-                <button onclick="adminTab='m4';renderAdminDashboard();" 
+                <button onclick="adminTab='m4';renderAdminDashboard();toggleSidebar();" 
                     class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${adminTab==='m4' ? 'bg-lime-50 text-lime-700 font-bold border-l-4 border-lime-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}">
                     <div class="w-2 h-2 rounded-full ${adminTab==='m4'?'bg-lime-500':'bg-gray-300'}"></div>
                     ข้อมูล ม.4
@@ -531,26 +546,26 @@ function renderAdminDashboard() {
 
                 <p class="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">เมนูจัดการ</p>
 
-                <button onclick="adminViewMode='manage';renderAdminDashboard();" 
+                <button onclick="adminViewMode='manage';renderAdminDashboard();toggleSidebar();" 
                     class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${adminViewMode==='manage' ? 'bg-blue-50 text-blue-700 font-bold border-l-4 border-blue-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                     รายชื่อผู้สมัคร
                 </button>
 
-                <button onclick="adminViewMode='ranking';rankingTab='all';renderAdminDashboard();" 
+                <button onclick="adminViewMode='ranking';rankingTab='all';renderAdminDashboard();toggleSidebar();" 
                     class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${adminViewMode==='ranking' ? 'bg-amber-50 text-amber-700 font-bold border-l-4 border-amber-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                     ประกาศผล/จัดลำดับ
                 </button>
 
-                <button onclick="adminViewMode='interview';rankingTab='all';renderAdminDashboard();" 
+                <button onclick="adminViewMode='interview';rankingTab='all';renderAdminDashboard();toggleSidebar();" 
                     class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${adminViewMode==='interview' ? 'bg-purple-50 text-purple-700 font-bold border-l-4 border-purple-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                     บันทึกคะแนนปฏิบัติ
                 </button>
             </div>
 
-            <div class="p-4 border-t border-gray-100">
+            <div class="p-4 border-t border-gray-100 shrink-0">
                 <button onclick="showAddStudentForm();toggleSidebar()" class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-lime-500 to-green-600 hover:from-lime-600 hover:to-green-700 text-white rounded-xl font-bold shadow-lg shadow-lime-200 active:scale-95 transition-all mb-2">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                     เพิ่มผู้เข้าสอบ
@@ -561,14 +576,18 @@ function renderAdminDashboard() {
             </div>
         </aside>
 
-        <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+        <div id="sidebar-overlay" class="fixed inset-0 bg-black/30 z-30 hidden md:hidden backdrop-blur-sm transition-opacity" onclick="toggleSidebar()"></div>
+
+        <main class="flex-1 flex flex-col h-full overflow-hidden w-full relative">
             
-            <header class="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-4 md:px-8 shrink-0 md:hidden z-20">
+            <header class="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-4 shrink-0 md:hidden z-20">
                 <div class="flex items-center gap-3">
                     <img src="https://img5.pic.in.th/file/secure-sv1/-69-1112b7dae5160e09f.png" class="w-8 h-8">
                     <span class="font-bold text-gray-700">Admin Panel</span>
                 </div>
-                <button onclick="toggleSidebar()" class="p-2 text-gray-500 bg-gray-50 rounded-lg"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg></button>
+                <button onclick="toggleSidebar()" class="p-2 text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 active:scale-95 transition-transform">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                </button>
             </header>
 
             <div class="flex-1 overflow-y-auto p-4 md:p-8 bg-[#f8fafc]">
@@ -602,7 +621,7 @@ function renderAdminDashboard() {
                 </div>
                 ` : ''}
 
-                <div class="animate-fade-in">
+                <div class="animate-fade-in pb-10">
                     ${ 
                         adminViewMode === 'manage' 
                         ? renderManageView(displayData, activeData.length) 
@@ -614,13 +633,11 @@ function renderAdminDashboard() {
                     }
                 </div>
 
-                <div class="mt-8 text-center">
-                    <p class="text-xs text-gray-300 font-medium">Admin System v2.0 - Designed by Kru Arnon</p>
+                <div class="mt-8 text-center md:hidden">
+                    <p class="text-xs text-gray-300 font-medium">Admin System v2.0</p>
                 </div>
             </div>
         </main>
-
-        <div id="sidebar-overlay" class="fixed inset-0 bg-black/20 z-10 hidden md:hidden backdrop-blur-sm transition-opacity" onclick="toggleSidebar()"></div>
     </div>
     `;
 }
