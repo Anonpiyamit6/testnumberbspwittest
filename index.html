@@ -824,191 +824,144 @@ function exportToWord() {
 function triggerSearch() { searchQuery = document.getElementById('search-input').value.trim(); renderAdminDashboard(); }
 
 function renderStudentView() {
-    const s = currentUser; // ข้อมูลนักเรียนที่ Login อยู่
-    if (!s) { renderLogin(); return; }
+    if(!currentUser) return;
 
-    // 1. เตรียมข้อมูลคะแนนและสถานะ
-    const isM1 = ['p4','p5','p6','m1'].includes(s.grade_level);
-    const totalScore = parseFloat(s.total_score) || 0;
-    const practicalScore = parseFloat(s.practical_score) || 0;
-    const grandTotal = totalScore + practicalScore;
+    // --- 1. คำนวณคะแนน (Logic เดิม) ---
+    const maxSci = 40; const maxMath = 30; const maxEng = 30; const maxTotal = 100;
 
-    // คำนวณร้อยละ (สำหรับหลอดสี)
-    const maxScore = isM1 ? 120 : 200; // สมมติฐานคะแนนเต็มคร่าวๆ (ปรับแก้ได้)
-    
-    // --- Logic ตรวจสอบผลการคัดเลือก (Clearing House) ---
-    // เพื่อแสดงว่า "ติด" โครงการไหน (เหมือนหน้า Admin)
-    const allStudentsInLevel = studentsData.filter(std => isM1 ? ['p4','p5','p6','m1'].includes(std.grade_level) : ['m3','m4'].includes(std.grade_level));
-    const sortedByGrandTotal = [...allStudentsInLevel].sort((a,b) => ((b.total_score||0)+(b.practical_score||0)) - ((a.total_score||0)+(a.practical_score||0)));
-    const finalRoundQuota = 40; 
-    
-    const choices = isM1 ? [s.choice_1, s.choice_2, s.choice_3] : [s.choice_1, s.choice_2];
-    let passStatus = null;
+    const sSci = parseFloat(currentUser.science_score)||0;
+    const sMath = parseFloat(currentUser.math_score)||0;
+    const sEng = parseFloat(currentUser.english_score)||0;
+    const sTotal = sSci + sMath + sEng;
 
-    for (const choiceName of choices) {
-        if (!choiceName) continue;
-        const programStudents = sortedByGrandTotal.filter(std => {
-            const stdChoices = isM1 ? [std.choice_1, std.choice_2, std.choice_3] : [std.choice_1, std.choice_2];
-            return stdChoices.includes(choiceName);
-        });
-        const rankInProgram = programStudents.findIndex(std => std.__backendId === s.__backendId);
+    const pSci = (sSci/maxSci)*100;
+    const pMath = (sMath/maxMath)*100;
+    const pEng = (sEng/maxEng)*100;
 
-        if (rankInProgram !== -1) {
-            // ถ้าอยู่ในโควตา 40 คนแรก
-            if (rankInProgram < finalRoundQuota) {
-                passStatus = { program: choiceName, type: 'real', rank: rankInProgram + 1 };
-                break; // เจอที่ติดแล้วหยุดเลย
-            } 
-            // ถ้ายังไม่ติดตัวจริงอันดับนี้ ให้เช็คว่าเป็นสำรองไหม (เก็บค่าไว้ก่อน)
-            else if (!passStatus) {
-                passStatus = { program: choiceName, type: 'reserve', rank: rankInProgram - finalRoundQuota + 1 };
-            }
-        }
-    }
+    const thaiGrade = getThaiGrade(currentUser.grade_level);
+    const grade = currentUser.grade_level.toLowerCase();
 
-    // 2. เริ่ม Render HTML
+    // เงื่อนไขการแสดงผล (Logic เดิม)
+    const showProjectsSection = !['p4', 'p5'].includes(grade); 
+    const showRank3 = !['m3', 'm4'].includes(grade); 
+
+    // --- 2. Render HTML ---
     document.getElementById('app').innerHTML = `
-    <div class="min-h-screen bg-slate-50 relative overflow-x-hidden font-sarabun pb-10">
-        <div class="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-lime-50 to-transparent -z-10"></div>
-        <div class="absolute -top-20 -right-20 w-96 h-96 bg-yellow-100/50 rounded-full blur-3xl -z-10 animate-pulse-slow"></div>
+    <div class="h-full bg-[#fdfbf7] overflow-auto font-sarabun">
+        <div class="gradient-bg h-48 w-full absolute top-0 left-0 z-0 rounded-b-[3rem] shadow-lg opacity-90"></div>
+        <div class="relative z-10 max-w-4xl mx-auto p-4 pt-8 pb-10">
 
-        <div class="max-w-4xl mx-auto p-4 md:p-8 animate-fade-in">
-            
-            <div class="bg-white rounded-[2.5rem] shadow-xl shadow-lime-100/50 border border-lime-100 p-8 md:p-10 mb-8 relative overflow-hidden text-center group">
-                <div class="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-lime-50 to-yellow-50 rounded-full blur-3xl -mr-20 -mt-20 opacity-60 pointer-events-none group-hover:scale-110 transition-transform duration-700"></div>
-                <div class="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-blue-50 to-purple-50 rounded-full blur-2xl -ml-10 -mb-10 opacity-60 pointer-events-none"></div>
-
+            <div class="bg-white rounded-[2rem] p-8 mb-6 shadow-xl relative overflow-hidden border border-lime-100 text-center">
                 <div class="relative z-10 flex flex-col items-center">
-                    <img src="https://img5.pic.in.th/file/secure-sv1/-69-1112b7dae5160e09f.png" alt="Logo" class="w-32 h-auto mb-4 drop-shadow-md hover:scale-105 transition-transform duration-300">
+                    <img src="https://img5.pic.in.th/file/secure-sv1/-69-1112b7dae5160e09f.png" alt="Logo" class="w-28 h-auto mb-4 drop-shadow-sm">
                     
-                    <h1 class="text-xl md:text-2xl font-black text-lime-900 mb-2 leading-tight">
+                    <h1 class="text-xl md:text-2xl font-bold text-lime-900 leading-tight mb-2">
                         ประกาศผลคะแนนการสอบแข่งขันทักษะวิชาการเพชรราชพฤกษ์
                     </h1>
-                    <p class="text-lg md:text-xl font-bold text-lime-700 mb-4">
+                    <h2 class="text-lg md:text-xl font-bold text-lime-900 leading-tight mb-2">
                         ปีการศึกษา 2569
-                    </p>
-                    <div class="h-1 w-24 bg-gradient-to-r from-lime-300 to-yellow-400 rounded-full mb-4"></div>
-                    <p class="text-gray-600 font-medium">
+                    </h2>
+                    <p class="text-lime-800 font-medium">
                         โรงเรียนบางสะพานวิทยา จังหวัดประจวบคีรีขันธ์
                     </p>
                 </div>
 
                 <div class="absolute bottom-4 right-4 z-20">
-                    <button onclick="currentView='login';render()" class="flex items-center gap-2 px-5 py-2.5 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white rounded-full font-bold text-sm transition-all shadow-sm hover:shadow-md active:scale-95 border border-red-100">
+                    <button onclick="currentView='login';render()" class="bg-red-50 hover:bg-red-500 text-red-500 hover:text-white px-4 py-2 rounded-full text-xs font-bold transition-all border border-red-100 flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
                         ออกจากระบบ
                     </button>
                 </div>
             </div>
-            <div class="bg-white rounded-3xl shadow-lg border border-gray-100 overflow-hidden mb-8 flex flex-col md:flex-row relative z-10">
-                <div class="bg-gradient-to-br from-lime-500 to-green-600 p-8 text-white flex flex-col items-center justify-center md:w-1/3 text-center relative overflow-hidden">
-                    <div class="absolute inset-0 bg-white/5 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMSIvPgo8cGF0aCBkPSJNMCAwTDggOFpNOCAwTDAgOFoiIHN0cm9rZT0ibm9uZSIvPjwvc3ZnPg==')] opacity-20"></div>
-                    <div class="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-2xl font-bold mb-4 border-2 border-white/30 shadow-inner">
-                        ${s.exam_id.slice(-3)}
-                    </div>
-                    <h2 class="text-xl font-bold mb-1 break-words w-full px-2">${s.full_name}</h2>
-                    <p class="text-lime-100 text-sm font-medium bg-white/10 px-3 py-1 rounded-full mt-2">รหัสสอบ: ${s.exam_id}</p>
-                </div>
-                <div class="p-6 md:p-8 md:w-2/3 grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8 bg-white/80 backdrop-blur-xl">
-                    <div>
-                        <p class="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">โรงเรียนเดิม</p>
-                        <p class="font-bold text-gray-700 text-lg flex items-center gap-2"><svg class="w-5 h-5 text-lime-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>${s.previous_school || '-'}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">ระดับชั้นที่สอบ</p>
-                        <p class="font-bold text-gray-700 text-lg flex items-center gap-2"><svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.747 0-3.332.477-4.5 1.253"></path></svg>${getThaiGrade(s.grade_level)}</p>
-                    </div>
-                    <div class="md:col-span-2 bg-gray-50 rounded-2xl p-4 border border-gray-100">
-                        <p class="text-xs text-gray-400 font-bold uppercase tracking-wider mb-3 flex items-center gap-2">
-                            <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
-                            โครงการที่เลือกสมัคร
-                        </p>
-                        <div class="flex flex-wrap gap-2">
-                            ${choices.filter(c=>c).map((c,i) => `<span class="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-600 flex items-center gap-2 shadow-sm"><span class="w-5 h-5 rounded-full ${i===0?'bg-lime-500 text-white':'bg-gray-200 text-gray-500'} flex items-center justify-center text-xs font-bold">${i+1}</span>${c}</span>`).join('')}
+            <div class="bg-white rounded-[2rem] p-6 shadow-xl mb-6 relative overflow-hidden border border-lime-100">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-lime-50 rounded-full -mr-10 -mt-10 opacity-60"></div>
+                <div class="flex flex-col md:flex-row items-center gap-6 relative z-10">
+                    <div class="flex-1 text-center md:text-left w-full">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-1">${currentUser.full_name}</h2>
+                        <p class="text-lime-600 font-medium mb-4 text-sm">${thaiGrade}</p>
+                        <div class="grid grid-cols-1 gap-3 text-gray-600 text-sm">
+                            <div class="bg-gray-50 px-4 py-3 rounded-xl border border-gray-100 flex justify-between"><span>เลขประจำตัวสอบ</span><span class="font-bold text-gray-800">${currentUser.exam_id}</span></div>
+                            <div class="bg-gray-50 px-4 py-3 rounded-xl border border-gray-100 flex justify-between"><span>โรงเรียนปัจจุบัน</span><span class="font-bold text-gray-800 truncate max-w-[150px]">${currentUser.previous_school}</span></div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            ${passStatus && passStatus.type === 'real' ? `
-            <div class="bg-gradient-to-r from-green-500 to-emerald-600 rounded-3xl p-1 shadow-lg shadow-green-200 mb-8 transform hover:scale-[1.02] transition-transform duration-300">
-                <div class="bg-white rounded-[1.3rem] p-6 text-center relative overflow-hidden">
-                    <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-green-400 to-emerald-500"></div>
-                    <div class="flex flex-col items-center justify-center">
-                        <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-3 text-green-600 animate-bounce">
-                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            ${showProjectsSection ? `
+            <div class="mb-8">
+                <h3 class="text-gray-600 font-bold text-lg mb-4 ml-2 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-lime-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                    อันดับโครงการที่เลือก
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div class="bg-white border-2 border-lime-100 p-4 rounded-2xl flex items-center gap-4 shadow-sm relative overflow-hidden">
+                        <div class="bg-lime-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 shadow-md">1</div>
+                        <div class="flex flex-col z-10">
+                            <span class="text-[10px] text-gray-400 font-bold uppercase">อันดับที่ 1</span>
+                            <span class="font-bold text-gray-700 text-lg">${currentUser.choice_1 || '-'}</span>
                         </div>
-                        <h3 class="text-2xl font-black text-gray-800 mb-1">ยินดีด้วย! คุณผ่านการคัดเลือก</h3>
-                        <p class="text-gray-500 text-sm mb-4">มีสิทธิ์เข้าศึกษาต่อในโครงการ</p>
-                        <div class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-teal-600 mb-2">
-                            ${passStatus.program}
-                        </div>
-                        <span class="px-4 py-1 bg-green-50 text-green-700 rounded-full text-xs font-bold border border-green-100">ตัวจริง ลำดับที่ ${passStatus.rank}</span>
+                        <div class="absolute right-[-10px] bottom-[-10px] text-lime-50 opacity-50 font-black text-6xl pointer-events-none">1</div>
                     </div>
+                    
+                    <div class="bg-white border-2 border-lime-100 p-4 rounded-2xl flex items-center gap-4 shadow-sm relative overflow-hidden">
+                        <div class="bg-lime-400 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 shadow-md">2</div>
+                        <div class="flex flex-col z-10">
+                            <span class="text-[10px] text-gray-400 font-bold uppercase">อันดับที่ 2</span>
+                            <span class="font-bold text-gray-700 text-lg">${currentUser.choice_2 || '-'}</span>
+                        </div>
+                        <div class="absolute right-[-10px] bottom-[-10px] text-lime-50 opacity-50 font-black text-6xl pointer-events-none">2</div>
+                    </div>
+
+                    ${showRank3 ? `
+                    <div class="bg-white border-2 border-lime-100 p-4 rounded-2xl flex items-center gap-4 shadow-sm relative overflow-hidden ${!currentUser.choice_3 ? 'opacity-50 grayscale' : ''}">
+                        <div class="bg-lime-300 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 shadow-md">3</div>
+                        <div class="flex flex-col z-10">
+                            <span class="text-[10px] text-gray-400 font-bold uppercase">อันดับที่ 3</span>
+                            <span class="font-bold text-gray-700 text-lg">${currentUser.choice_3 || '-'}</span>
+                        </div>
+                        <div class="absolute right-[-10px] bottom-[-10px] text-lime-50 opacity-50 font-black text-6xl pointer-events-none">3</div>
+                    </div>
+                    ` : ''}
                 </div>
             </div>
-            ` : (passStatus && passStatus.type === 'reserve' ? `
-            <div class="bg-gradient-to-r from-amber-400 to-orange-500 rounded-3xl p-1 shadow-lg shadow-amber-200 mb-8">
-                <div class="bg-white rounded-[1.3rem] p-6 text-center">
-                    <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mb-3 mx-auto text-amber-600">
-                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    </div>
-                    <h3 class="text-xl font-bold text-gray-800">ติดบัญชีสำรอง</h3>
-                    <div class="text-2xl font-black text-amber-500 mt-2">${passStatus.program}</div>
-                    <span class="mt-2 inline-block px-4 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-bold">ลำดับสำรองที่ ${passStatus.rank}</span>
+            ` : ''}
+
+            <h3 class="text-gray-600 font-bold text-lg mb-4 ml-2 flex items-center gap-2"><svg class="w-5 h-5 text-lime-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>คะแนนรายวิชา</h3>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-2 relative overflow-hidden group hover:shadow-md transition-shadow">
+                    <div class="absolute right-0 top-0 w-16 h-16 bg-blue-50 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-110"></div>
+                    <div class="flex justify-between items-center mb-1 relative z-10"><div class="flex items-center gap-2"><div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-500"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg></div><span class="text-gray-600 text-xs font-bold uppercase tracking-wider">วิทยาศาสตร์</span></div><span class="text-[10px] text-gray-400 font-bold bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100">เต็ม ${maxSci}</span></div>
+                    <div class="flex justify-between items-end relative z-10"><span class="text-3xl font-bold text-gray-800">${sSci}</span><span class="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">ร้อยละ ${pSci.toFixed(1)}</span></div>
+                    <div class="w-full bg-gray-100 h-2 rounded-full overflow-hidden mt-3 relative z-10"><div class="bg-blue-400 h-2 rounded-full" style="width: ${pSci}%"></div></div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-2 relative overflow-hidden group hover:shadow-md transition-shadow">
+                    <div class="absolute right-0 top-0 w-16 h-16 bg-red-50 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-110"></div>
+                    <div class="flex justify-between items-center mb-1 relative z-10"><div class="flex items-center gap-2"><div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg></div><span class="text-gray-600 text-xs font-bold uppercase tracking-wider">คณิตศาสตร์</span></div><span class="text-[10px] text-gray-400 font-bold bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100">เต็ม ${maxMath}</span></div>
+                    <div class="flex justify-between items-end relative z-10"><span class="text-3xl font-bold text-gray-800">${sMath}</span><span class="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded-lg">ร้อยละ ${pMath.toFixed(1)}</span></div>
+                    <div class="w-full bg-gray-100 h-2 rounded-full overflow-hidden mt-3 relative z-10"><div class="bg-red-400 h-2 rounded-full" style="width: ${pMath}%"></div></div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-2 relative overflow-hidden group hover:shadow-md transition-shadow">
+                    <div class="absolute right-0 top-0 w-16 h-16 bg-purple-50 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-110"></div>
+                    <div class="flex justify-between items-center mb-1 relative z-10"><div class="flex items-center gap-2"><div class="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-500"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"></path></svg></div><span class="text-gray-600 text-xs font-bold uppercase tracking-wider">ภาษาอังกฤษ</span></div><span class="text-[10px] text-gray-400 font-bold bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100">เต็ม ${maxEng}</span></div>
+                    <div class="flex justify-between items-end relative z-10"><span class="text-3xl font-bold text-gray-800">${sEng}</span><span class="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-1 rounded-lg">ร้อยละ ${pEng.toFixed(1)}</span></div>
+                    <div class="w-full bg-gray-100 h-2 rounded-full overflow-hidden mt-3 relative z-10"><div class="bg-purple-400 h-2 rounded-full" style="width: ${pEng}%"></div></div>
                 </div>
             </div>
-            ` : '')}
 
-            <h3 class="text-xl font-bold text-gray-700 mb-4 flex items-center gap-2 px-2">
-                <svg class="w-6 h-6 text-lime-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-                ผลคะแนนสอบ
-            </h3>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div class="bg-gradient-to-br from-gray-800 to-gray-900 rounded-3xl p-6 text-white relative overflow-hidden shadow-lg">
-                    <div class="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full -mr-10 -mt-10"></div>
-                    <p class="text-gray-400 text-sm font-bold uppercase tracking-wider mb-4">คะแนนรวมสุทธิ</p>
+            <div class="bg-gradient-to-br from-amber-50 via-orange-50 to-white rounded-3xl p-6 border border-amber-100 text-center relative overflow-hidden shadow-sm">
+                <div class="absolute top-0 left-0 w-full h-full bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9IiNmYmJmMjQiIGZpbGwtb3BhY2l0eT0iMC4yIi8+PC9zdmc+')] opacity-30"></div>
+                <div class="relative z-10 flex flex-col items-center">
+                    <p class="text-amber-700 font-bold uppercase tracking-widest text-xs mb-2">คะแนนรวม 3 วิชา (เต็ม ${maxTotal})</p>
                     <div class="flex items-baseline gap-2">
-                        <span class="text-5xl font-black text-lime-400">${grandTotal.toFixed(2)}</span>
-                        <span class="text-gray-400 text-sm">/ เต็ม ${maxScore}</span>
+                        <p class="text-5xl font-black text-amber-500 drop-shadow-sm tracking-tight">${sTotal.toFixed(2)}</p>
                     </div>
-                    <div class="mt-4 w-full bg-gray-700 h-2 rounded-full overflow-hidden">
-                        <div class="bg-gradient-to-r from-lime-400 to-green-500 h-full rounded-full" style="width: ${(grandTotal/maxScore)*100}%"></div>
-                    </div>
-                </div>
-
-                <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-center gap-4">
-                    <div class="flex justify-between items-center pb-3 border-b border-gray-50">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center font-bold"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></div>
-                            <div><p class="font-bold text-gray-700">สอบข้อเขียน</p><p class="text-xs text-gray-400">3 วิชาหลัก</p></div>
-                        </div>
-                        <div class="text-right"><p class="text-xl font-black text-blue-600">${totalScore.toFixed(2)}</p><p class="text-[10px] text-gray-400">เต็ม 100</p></div>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-500 flex items-center justify-center font-bold"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg></div>
-                            <div><p class="font-bold text-gray-700">สอบปฏิบัติ</p><p class="text-xs text-gray-400">สัมภาษณ์/ปฏิบัติ</p></div>
-                        </div>
-                        <div class="text-right"><p class="text-xl font-black text-purple-600">${practicalScore > 0 ? practicalScore.toFixed(2) : '-'}</p><p class="text-[10px] text-gray-400">เต็ม ${maxScore - 100}</p></div>
-                    </div>
+                    <span class="text-xs font-bold text-amber-700 bg-amber-100/50 px-4 py-1.5 rounded-full mt-3 border border-amber-200">คิดเป็นร้อยละ ${((sTotal/maxTotal)*100).toFixed(1)}</span>
                 </div>
             </div>
 
-            <div class="grid grid-cols-3 gap-2 md:gap-4 mb-8">
-                <div class="bg-white p-4 rounded-2xl border border-gray-100 text-center shadow-sm">
-                    <p class="text-xs text-gray-400 font-bold mb-1">วิทย์</p>
-                    <p class="text-lg font-black text-gray-800">${s.science_score || 0}</p>
-                </div>
-                <div class="bg-white p-4 rounded-2xl border border-gray-100 text-center shadow-sm">
-                    <p class="text-xs text-gray-400 font-bold mb-1">คณิต</p>
-                    <p class="text-lg font-black text-gray-800">${s.math_score || 0}</p>
-                </div>
-                <div class="bg-white p-4 rounded-2xl border border-gray-100 text-center shadow-sm">
-                    <p class="text-xs text-gray-400 font-bold mb-1">อังกฤษ</p>
-                    <p class="text-lg font-black text-gray-800">${s.english_score || 0}</p>
-                </div>
+            <div class="mt-8 mb-4 text-center border-t border-gray-200/50 pt-4">
+                <p class="text-xs text-gray-400 font-medium">พัฒนาระบบโดย ครูอานนท์ เมืองแก้ว</p>
             </div>
 
         </div>
