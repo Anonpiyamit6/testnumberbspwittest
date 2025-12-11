@@ -6,6 +6,32 @@
 <title>ระบบประกาศผลคะแนน</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+
+<style>
+    /* บังคับใช้ฟอนต์ Sarabun กับทุก Elements ในหน้าเว็บ */
+    * {
+        font-family: 'Sarabun', sans-serif !important;
+    }
+
+    /* ปรับแต่งตัวเลขให้สวยงามและอ่านง่าย */
+    body, html, input, textarea, select, button, table, th, td, span, div, p, h1, h2, h3, h4, h5, h6 {
+        font-family: 'Sarabun', sans-serif !important;
+    }
+
+    /* แก้ไขปัญหาตัวเลขใน Input ไม่ยอมเปลี่ยนฟอนต์ในบาง Browser */
+    input[type="number"], input[type="text"] {
+        font-family: 'Sarabun', sans-serif !important;
+        font-variant-numeric: tabular-nums; /* จัดตัวเลขให้ตรงแนวกัน */
+    }
+    
+    /* ยกเลิกฟอนต์ Mono เดิม (ถ้ามี) ให้กลับมาใช้ Sarabun */
+    .font-mono {
+        font-family: 'Sarabun', sans-serif !important;
+    }
+</style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet">
 
