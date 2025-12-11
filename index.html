@@ -677,8 +677,13 @@ function renderRankingView(allStudents) {
 
 // --- ฟังก์ชันส่งออกเป็นไฟล์ Word (.doc) พร้อมข้อความทางการ ---
 function exportToWord() {
-    // 1. คำนวณข้อมูล (Logic เดียวกับ Clearing House)
-    const sortedAll = [...studentsData].sort((a,b) => b.total_score - a.total_score);
+    // 0. กรองข้อมูลเฉพาะระดับชั้นที่เลือก (สำคัญ: ป้องกันข้อมูลข้ามระดับชั้น)
+    const m1 = studentsData.filter(s => ['p4','p5','p6','m1'].includes(s.grade_level));
+    const m4 = studentsData.filter(s => ['m3','m4'].includes(s.grade_level));
+    const activeData = adminTab === 'm1' ? m1 : m4;
+
+    // 1. คำนวณข้อมูล (ใช้ activeData แทน studentsData)
+    const sortedAll = [...activeData].sort((a,b) => b.total_score - a.total_score);
     const currentQuotas = { ...quotas[adminTab] };
     const counts = {};
     Object.keys(currentQuotas).forEach(k => counts[k] = 0);
@@ -714,7 +719,7 @@ function exportToWord() {
         }));
     }
 
-    // 2. สร้างเนื้อหา HTML สำหรับ Word (แก้ไขคำพูดให้เป็นทางการ)
+    // 2. สร้างเนื้อหา HTML สำหรับ Word
     const tableRows = renderList.length > 0 ? renderList.map(s => `
         <tr>
             <td style="text-align:center;">${s.rank}</td>
@@ -733,7 +738,6 @@ function exportToWord() {
 
     const title = `ประกาศผลสอบห้องเรียนพิเศษ ${adminTab==='m1'?'ม.1':'ม.4'} - ${rankingTab === 'all' ? 'รวม' : rankingTab}`;
     
-    // HTML Template สำหรับ Word
     const docContent = `
         <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
         <head><meta charset='utf-8'><title>${title}</title>
@@ -781,7 +785,6 @@ function exportToWord() {
         </body></html>
     `;
 
-    // สร้าง Blob และ Download
     const blob = new Blob(['\ufeff', docContent], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -1334,8 +1337,13 @@ function saveSingleInterviewScore(id, maxScore) {
 }
 // --- ฟังก์ชัน Export Excel สำหรับหน้าประกาศผล/จัดลำดับ ---
 function exportRankingToExcel() {
+    // 0. กรองข้อมูลเฉพาะระดับชั้นที่เลือก
+    const m1 = studentsData.filter(s => ['p4','p5','p6','m1'].includes(s.grade_level));
+    const m4 = studentsData.filter(s => ['m3','m4'].includes(s.grade_level));
+    const activeData = adminTab === 'm1' ? m1 : m4;
+
     // 1. คำนวณ Logic Clearing House
-    const sortedAll = [...studentsData].sort((a,b) => b.total_score - a.total_score);
+    const sortedAll = [...activeData].sort((a,b) => b.total_score - a.total_score);
     const currentQuotas = { ...quotas[adminTab] };
     const counts = {};
     Object.keys(currentQuotas).forEach(k => counts[k] = 0);
@@ -1384,13 +1392,11 @@ function exportRankingToExcel() {
         };
     });
 
-    // 3. สร้างไฟล์
     const ws = XLSX.utils.json_to_sheet(excelRows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Ranking");
     XLSX.writeFile(wb, `ประกาศผลสอบ_${adminTab}_${rankingTab}.xlsx`);
 }
-
 // --- ฟังก์ชัน Export Excel สำหรับหน้าบันทึกคะแนนปฏิบัติ ---
 function exportInterviewToExcel() {
     // 1. Logic ดึงข้อมูลเหมือนหน้าจอ Interview
