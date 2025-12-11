@@ -473,73 +473,154 @@ function resetLogin() { document.getElementById('login-form-container').classLis
 function handleLogin(e) { e.preventDefault(); const isStudent = !document.getElementById('input-student').classList.contains('hidden'); if(isStudent){ const id = document.getElementById('login-id').value.trim(); const user = studentsData.find(s => String(s.national_id).trim() === String(id)); if(user){currentUser = user; currentView = 'student'; render();}else showAlert('ไม่พบข้อมูล', 'ไม่พบเลขบัตรประชาชนนี้ในระบบ'); }else{ if(document.getElementById('admin-user').value === 'admin' && document.getElementById('admin-pass').value === 'admin11275'){currentView='admin';render();}else showAlert('ผิดพลาด', 'ชื่อผู้ใช้หรือรหัสผ่านผิด'); } }
 
 function renderAdminDashboard() {
-    // 1. กรองนักเรียนตามระดับชั้น (ม.1 หรือ ม.4)
+    // 1. กรองข้อมูล
     const m1 = studentsData.filter(s => ['p4','p5','p6','m1'].includes(s.grade_level));
     const m4 = studentsData.filter(s => ['m3','m4'].includes(s.grade_level));
     let activeData = adminTab === 'm1' ? m1 : m4;
 
-    // 2. Logic การกรองข้อมูลสำหรับหน้า Manage
+    // คำนวณสถิติเบื้องต้นเพื่อแสดงใน Dashboard
+    const totalStudents = activeData.length;
+    const hasScore = activeData.filter(s => s.total_score > 0).length;
+    const hasPractical = activeData.filter(s => s.practical_score > 0).length;
+
+    // Logic การกรองสำหรับหน้า Manage
     let displayData = activeData;
-    if(adminViewMode === 'manage') {
-        if(searchQuery) displayData = displayData.filter(s => s.full_name.includes(searchQuery) || String(s.exam_id).includes(searchQuery) || String(s.national_id).includes(searchQuery));
+    if(adminViewMode === 'manage' && searchQuery) {
+        displayData = displayData.filter(s => s.full_name.includes(searchQuery) || String(s.exam_id).includes(searchQuery) || String(s.national_id).includes(searchQuery));
     }
     checkedIds.clear();
 
-    // 3. เริ่มต้น Render HTML
+    // 2. Render HTML
     document.getElementById('app').innerHTML = `
-    <div class="h-full flex flex-col md:flex-row overflow-hidden bg-[#f8fafc]">
+    <div class="h-screen flex bg-[#f8fafc] font-sarabun overflow-hidden">
         
-        <div class="md:hidden bg-white p-4 shadow-sm flex justify-between items-center z-20 shrink-0 border-b border-gray-100">
-            <div class="flex items-center gap-2"><h2 class="font-bold text-gray-700">ระบบแอดมิน</h2></div>
-            <button onclick="toggleSidebar()" class="p-2 text-gray-500 rounded-lg"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg></button>
-        </div>
-        <div id="sidebar-overlay" class="fixed inset-0 bg-black/30 z-30 hidden md:hidden backdrop-blur-sm transition-opacity" onclick="toggleSidebar()"></div>
-        
-        <div id="sidebar" class="fixed inset-y-0 left-0 z-40 w-64 bg-white flex flex-col p-6 shadow-xl transform -translate-x-full transition-transform duration-300 md:translate-x-0 md:static">
-            <div class="hidden md:flex mb-8 px-2 items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-lime-100 flex items-center justify-center text-lime-600 font-bold">AD</div>
-                <h2 class="text-lg font-bold text-gray-700">Admin Panel</h2>
+        <aside class="hidden md:flex w-72 flex-col bg-white border-r border-gray-100 shadow-xl z-20">
+            <div class="h-20 flex items-center gap-3 px-6 border-b border-gray-50">
+                <img src="https://img5.pic.in.th/file/secure-sv1/-69-1112b7dae5160e09f.png" class="w-10 h-10 drop-shadow-sm">
+                <div>
+                    <h1 class="text-lg font-bold text-gray-800 leading-tight">ระบบรับสมัคร</h1>
+                    <p class="text-xs text-lime-600 font-bold">Admin Panel</p>
+                </div>
             </div>
+
+            <div class="p-6 pb-2">
+                <div class="bg-gradient-to-br from-lime-50 to-green-50 rounded-2xl p-4 border border-lime-100 flex items-center gap-3 shadow-sm">
+                    <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lime-600 font-bold shadow-sm border border-lime-50">AD</div>
+                    <div>
+                        <p class="text-sm font-bold text-gray-700">ผู้ดูแลระบบ</p>
+                        <p class="text-xs text-gray-400">สถานะ: ออนไลน์</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto px-4 py-4 space-y-1">
+                <p class="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">เลือกกลุ่มข้อมูล</p>
+                
+                <button onclick="adminTab='m1';renderAdminDashboard();" 
+                    class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${adminTab==='m1' ? 'bg-lime-50 text-lime-700 font-bold border-l-4 border-lime-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}">
+                    <div class="w-2 h-2 rounded-full ${adminTab==='m1'?'bg-lime-500':'bg-gray-300'}"></div>
+                    ข้อมูล ม.1
+                </button>
+                <button onclick="adminTab='m4';renderAdminDashboard();" 
+                    class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${adminTab==='m4' ? 'bg-lime-50 text-lime-700 font-bold border-l-4 border-lime-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}">
+                    <div class="w-2 h-2 rounded-full ${adminTab==='m4'?'bg-lime-500':'bg-gray-300'}"></div>
+                    ข้อมูล ม.4
+                </button>
+
+                <div class="h-px bg-gray-100 my-4 mx-2"></div>
+
+                <p class="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">เมนูจัดการ</p>
+
+                <button onclick="adminViewMode='manage';renderAdminDashboard();" 
+                    class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${adminViewMode==='manage' ? 'bg-blue-50 text-blue-700 font-bold border-l-4 border-blue-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                    รายชื่อผู้สมัคร
+                </button>
+
+                <button onclick="adminViewMode='ranking';rankingTab='all';renderAdminDashboard();" 
+                    class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${adminViewMode==='ranking' ? 'bg-amber-50 text-amber-700 font-bold border-l-4 border-amber-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                    ประกาศผล/จัดลำดับ
+                </button>
+
+                <button onclick="adminViewMode='interview';rankingTab='all';renderAdminDashboard();" 
+                    class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${adminViewMode==='interview' ? 'bg-purple-50 text-purple-700 font-bold border-l-4 border-purple-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                    บันทึกคะแนนปฏิบัติ
+                </button>
+            </div>
+
+            <div class="p-4 border-t border-gray-100">
+                <button onclick="showAddStudentForm();toggleSidebar()" class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-lime-500 to-green-600 hover:from-lime-600 hover:to-green-700 text-white rounded-xl font-bold shadow-lg shadow-lime-200 active:scale-95 transition-all mb-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    เพิ่มผู้เข้าสอบ
+                </button>
+                <button onclick="currentView='login';render()" class="w-full flex items-center justify-center gap-2 px-4 py-2 text-red-500 hover:bg-red-50 rounded-lg font-bold text-sm transition-all">
+                    ออกจากระบบ
+                </button>
+            </div>
+        </aside>
+
+        <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
             
-            <div class="space-y-6 flex-1">
-                <div>
-                    <p class="text-xs font-bold text-gray-400 uppercase mb-3 px-2">เลือกกลุ่มข้อมูล</p>
-                    <button class="sidebar-btn ${adminTab==='m1'?'active':''}" onclick="adminTab='m1';renderAdminDashboard();"><span class="w-2 h-2 rounded-full ${adminTab==='m1'?'bg-lime-500':'bg-gray-300'}"></span> ข้อมูล ม.1 (เข้าเรียน)</button>
-                    <button class="sidebar-btn ${adminTab==='m4'?'active':''}" onclick="adminTab='m4';renderAdminDashboard();"><span class="w-2 h-2 rounded-full ${adminTab==='m4'?'bg-lime-500':'bg-gray-300'}"></span> ข้อมูล ม.4 (เข้าเรียน)</button>
+            <header class="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-4 md:px-8 shrink-0 md:hidden z-20">
+                <div class="flex items-center gap-3">
+                    <img src="https://img5.pic.in.th/file/secure-sv1/-69-1112b7dae5160e09f.png" class="w-8 h-8">
+                    <span class="font-bold text-gray-700">Admin Panel</span>
+                </div>
+                <button onclick="toggleSidebar()" class="p-2 text-gray-500 bg-gray-50 rounded-lg"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg></button>
+            </header>
+
+            <div class="flex-1 overflow-y-auto p-4 md:p-8 bg-[#f8fafc]">
+                
+                ${adminViewMode === 'manage' ? `
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-8">
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col relative overflow-hidden group">
+                        <div class="absolute right-0 top-0 w-16 h-16 bg-lime-50 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-110"></div>
+                        <span class="text-xs text-gray-400 font-bold uppercase tracking-wider z-10">จำนวนผู้สมัคร</span>
+                        <span class="text-3xl font-black text-gray-800 mt-1 z-10">${totalStudents} <span class="text-sm font-normal text-gray-400">คน</span></span>
+                        <div class="w-8 h-1 bg-lime-500 rounded-full mt-3 z-10"></div>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col relative overflow-hidden group">
+                        <div class="absolute right-0 top-0 w-16 h-16 bg-blue-50 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-110"></div>
+                        <span class="text-xs text-gray-400 font-bold uppercase tracking-wider z-10">มีคะแนนข้อเขียน</span>
+                        <span class="text-3xl font-black text-gray-800 mt-1 z-10">${hasScore} <span class="text-sm font-normal text-gray-400">คน</span></span>
+                        <div class="w-8 h-1 bg-blue-500 rounded-full mt-3 z-10"></div>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col relative overflow-hidden group">
+                        <div class="absolute right-0 top-0 w-16 h-16 bg-purple-50 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-110"></div>
+                        <span class="text-xs text-gray-400 font-bold uppercase tracking-wider z-10">มีคะแนนปฏิบัติ</span>
+                        <span class="text-3xl font-black text-gray-800 mt-1 z-10">${hasPractical} <span class="text-sm font-normal text-gray-400">คน</span></span>
+                        <div class="w-8 h-1 bg-purple-500 rounded-full mt-3 z-10"></div>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col relative overflow-hidden group">
+                        <div class="absolute right-0 top-0 w-16 h-16 bg-orange-50 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-110"></div>
+                        <span class="text-xs text-gray-400 font-bold uppercase tracking-wider z-10">ระดับชั้น</span>
+                        <span class="text-3xl font-black text-gray-800 mt-1 z-10">${adminTab.toUpperCase()}</span>
+                        <div class="w-8 h-1 bg-orange-500 rounded-full mt-3 z-10"></div>
+                    </div>
+                </div>
+                ` : ''}
+
+                <div class="animate-fade-in">
+                    ${ 
+                        adminViewMode === 'manage' 
+                        ? renderManageView(displayData, activeData.length) 
+                        : (
+                            adminViewMode === 'ranking' 
+                            ? renderRankingView(activeData) 
+                            : renderInterviewView(activeData) 
+                        )
+                    }
                 </div>
 
-                <div>
-                    <p class="text-xs font-bold text-gray-400 uppercase mb-3 px-2">เมนูหลัก</p>
-                    
-                    <button class="sidebar-btn ${adminViewMode==='manage'?'bg-blue-50 text-blue-600 font-bold':''}" onclick="adminViewMode='manage';renderAdminDashboard();">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg> จัดการรายชื่อ
-                    </button>
-                    
-                    <button class="sidebar-btn ${adminViewMode==='ranking'?'bg-blue-50 text-blue-600 font-bold':''}" onclick="adminViewMode='ranking';rankingTab='all';renderAdminDashboard();">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg> ประกาศผล/จัดลำดับ
-                    </button>
-
-                    <button class="sidebar-btn ${adminViewMode==='interview'?'bg-purple-50 text-purple-600 font-bold':''}" onclick="adminViewMode='interview';rankingTab='all';renderAdminDashboard();">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg> บันทึกคะแนนปฏิบัติ
-                    </button>
-
-                    <button class="sidebar-btn border-t border-gray-100 mt-2 pt-4 text-lime-600" onclick="showAddStudentForm();toggleSidebar()"><span class="text-xl font-bold mr-2">+</span> เพิ่มผู้เข้าสอบ</button>
+                <div class="mt-8 text-center">
+                    <p class="text-xs text-gray-300 font-medium">Admin System v2.0 - Designed by Kru Arnon</p>
                 </div>
             </div>
-            <button class="sidebar-btn text-red-400 hover:bg-red-50 mt-auto" onclick="currentView='login';render()">ออกจากระบบ</button>
-        </div>
+        </main>
 
-        <div class="flex-1 overflow-auto p-4 md:p-8 w-full bg-[#f8fafc]">
-            ${ 
-                adminViewMode === 'manage' 
-                ? renderManageView(displayData, activeData.length) 
-                : (
-                    adminViewMode === 'ranking' 
-                    ? renderRankingView(activeData) 
-                    : renderInterviewView(activeData) // เรียกหน้า Interview ถ้าเลือกเมนูใหม่
-                  )
-            }
-        </div>
+        <div id="sidebar-overlay" class="fixed inset-0 bg-black/20 z-10 hidden md:hidden backdrop-blur-sm transition-opacity" onclick="toggleSidebar()"></div>
     </div>
     `;
 }
