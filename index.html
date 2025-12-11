@@ -1337,12 +1337,11 @@ function saveSingleInterviewScore(id, maxScore) {
 }
 // --- ฟังก์ชัน Export Excel สำหรับหน้าประกาศผล/จัดลำดับ ---
 function exportRankingToExcel() {
-    // 0. กรองข้อมูลเฉพาะระดับชั้นที่เลือก
+    // 1. คำนวณ Logic Clearing House
     const m1 = studentsData.filter(s => ['p4','p5','p6','m1'].includes(s.grade_level));
     const m4 = studentsData.filter(s => ['m3','m4'].includes(s.grade_level));
     const activeData = adminTab === 'm1' ? m1 : m4;
 
-    // 1. คำนวณ Logic Clearing House
     const sortedAll = [...activeData].sort((a,b) => b.total_score - a.total_score);
     const currentQuotas = { ...quotas[adminTab] };
     const counts = {};
@@ -1374,11 +1373,21 @@ function exportRankingToExcel() {
         });
     }
 
-    // 2. แปลงข้อมูลเป็น Format Excel
+    // 2. แปลงข้อมูลเป็น Format Excel (แก้ไขคำตรงนี้)
     const excelRows = dataList.map((s, i) => {
-        const statusText = rankingTab === 'all' 
-            ? (allocationResult[s.__backendId] ? `ติด ${allocationResult[s.__backendId]}` : 'ไม่ผ่าน')
-            : (allocationResult[s.__backendId] === targetProgram ? 'ตัวจริง' : 'สำรอง');
+        let statusText = '';
+        
+        if (rankingTab === 'all') {
+            // กรณีภาพรวม
+            statusText = allocationResult[s.__backendId] 
+                ? `ผ่านเกณฑ์ห้องเรียนโครงการ ${allocationResult[s.__backendId]}` 
+                : 'ไม่ผ่านเกณฑ์';
+        } else {
+            // กรณีแยกโครงการ
+            statusText = (allocationResult[s.__backendId] === targetProgram) 
+                ? 'ผ่านเกณฑ์' 
+                : 'ไม่ผ่านเกณฑ์';
+        }
 
         return {
             'ลำดับ': i + 1,
@@ -1392,6 +1401,7 @@ function exportRankingToExcel() {
         };
     });
 
+    // 3. สร้างไฟล์
     const ws = XLSX.utils.json_to_sheet(excelRows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Ranking");
