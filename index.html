@@ -1151,7 +1151,6 @@ function showInterviewForm(id, maxScore, programName) {
     const s = studentsData.find(x => x.__backendId === id);
     if (!s) return;
 
-    // เตรียมตัวเลข (ถ้าไม่มีให้เป็น 0)
     const sci = parseFloat(s.science_score) || 0;
     const math = parseFloat(s.math_score) || 0;
     const eng = parseFloat(s.english_score) || 0;
@@ -1165,11 +1164,9 @@ function showInterviewForm(id, maxScore, programName) {
             
             <div class="bg-gradient-to-r from-lime-400 to-lime-500 p-6 pt-8 pb-10 text-white relative overflow-hidden">
                 <div class="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-10 -mt-10"></div>
-                
                 <button onclick="closeInterviewModal()" class="absolute top-4 right-4 text-white/80 hover:text-white bg-black/10 hover:bg-black/20 rounded-full p-1 transition-all">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
-
                 <div class="text-center relative z-10">
                     <div class="inline-block px-3 py-1 bg-white/20 rounded-full text-xs font-bold mb-2 border border-white/30">
                         โครงการ ${programName}
@@ -1180,21 +1177,11 @@ function showInterviewForm(id, maxScore, programName) {
             </div>
 
             <div class="p-6 -mt-6 bg-white rounded-t-[2rem] relative z-20">
-                
                 <div class="mb-2 text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">ผลคะแนนข้อเขียน</div>
                 <div class="grid grid-cols-3 gap-3 mb-4">
-                    <div class="bg-blue-50 p-3 rounded-xl text-center border border-blue-100">
-                        <div class="text-xs text-blue-400 font-bold mb-1">วิทยาศาสตร์</div>
-                        <div class="text-xl font-black text-blue-600">${sci}</div>
-                    </div>
-                    <div class="bg-red-50 p-3 rounded-xl text-center border border-red-100">
-                        <div class="text-xs text-red-400 font-bold mb-1">คณิตศาสตร์</div>
-                        <div class="text-xl font-black text-red-600">${math}</div>
-                    </div>
-                    <div class="bg-purple-50 p-3 rounded-xl text-center border border-purple-100">
-                        <div class="text-xs text-purple-400 font-bold mb-1">ภาษาอังกฤษ</div>
-                        <div class="text-xl font-black text-purple-600">${eng}</div>
-                    </div>
+                    <div class="bg-blue-50 p-3 rounded-xl text-center border border-blue-100"><div class="text-xs text-blue-400 font-bold mb-1">วิทยาศาสตร์</div><div class="text-xl font-black text-blue-600">${sci}</div></div>
+                    <div class="bg-red-50 p-3 rounded-xl text-center border border-red-100"><div class="text-xs text-red-400 font-bold mb-1">คณิตศาสตร์</div><div class="text-xl font-black text-red-600">${math}</div></div>
+                    <div class="bg-purple-50 p-3 rounded-xl text-center border border-purple-100"><div class="text-xs text-purple-400 font-bold mb-1">ภาษาอังกฤษ</div><div class="text-xl font-black text-purple-600">${eng}</div></div>
                 </div>
 
                 <div class="bg-gray-50 rounded-xl p-4 border border-gray-200 flex justify-between items-center mb-6 shadow-inner">
@@ -1213,6 +1200,7 @@ function showInterviewForm(id, maxScore, programName) {
                         value="${practical > 0 ? practical : ''}" 
                         placeholder="0"
                         min="0" max="${maxScore}" step="0.01"
+                        oninput="if(parseFloat(this.value) > ${maxScore}) this.value = ${maxScore}; if(parseFloat(this.value) < 0) this.value = 0;"
                         onkeydown="if(event.key==='Enter') saveSingleInterviewScore('${id}', ${maxScore})"
                     >
                     <div class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">คะแนน</div>
@@ -1640,20 +1628,42 @@ function updatePracticalScore(id, value, max) {
     // คำนวณคะแนนรวมทันทีที่พิมพ์ (Frontend Only) ไม่ต้องโหลดหน้าใหม่
 function calculateRow(input, maxTotal, maxScore) {
     let val = parseFloat(input.value);
+    
+    // ถ้าลบจนว่าง ให้ถือเป็น 0
+    if (input.value === '') {
+        val = 0;
+    }
+
     if (isNaN(val)) val = 0;
-    if (val < 0) val = 0;
+    if (val < 0) {
+        val = 0;
+        input.value = 0;
+    }
+
+    // *** ตรวจสอบค่าเกิน (Logic ใหม่) ***
     if (val > maxScore) {
-        alert(`คะแนนเกิน ${maxScore}`);
+        // ไม่ต้อง Alert ให้รำคาญใจ แต่แก้ค่าให้เป็น Max ทันที
         val = maxScore;
-        input.value = maxScore;
+        input.value = maxScore; 
     }
 
     const row = input.closest('tr');
-    const written = parseFloat(row.dataset.written) || 0;
+    // ดึงคะแนนข้อเขียนจาก attribute data-written ที่ฝังไว้ (ถ้าไม่มีให้คำนวณจาก cell)
+    // แต่ใน renderInterviewView เราไม่ได้ฝัง data-written ไว้ใน <td> 
+    // ดังนั้นเราจะดึงจาก cell ที่ 5 (รวมข้อเขียน)
+    // หมายเหตุ: เพื่อความแม่นยำ ผมแนะนำให้ใช้ data-written ใน tr ที่ผมใส่ไว้ในโค้ดก่อนหน้า
+    // หรือดึงจาก innerText ของ cell ก็ได้
+    
+    // วิธีดึงจาก Cell รวมข้อเขียน (Column index 5 - เริ่มนับจาก 0)
+    const cells = row.getElementsByTagName('td');
+    const writtenText = cells[5].innerText; // ช่องรวมข้อเขียน
+    const written = parseFloat(writtenText) || 0;
+    
     const total = written + val;
 
     // อัปเดตตัวเลขรวมในตารางทันที
-    row.querySelector('.cell-total').textContent = total.toFixed(2);
+    // ช่องรวมสุทธิคือ cells[7]
+    if(cells[7]) cells[7].textContent = total.toFixed(2);
 }
 
 // ฟังก์ชันบันทึกข้อมูล (ทำงานเมื่อกดปุ่มสีเขียว)
