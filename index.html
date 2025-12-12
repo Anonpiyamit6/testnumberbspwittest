@@ -1078,46 +1078,65 @@ function showEditForm(id) {
 
 function handleSingleSubmit(e) {
     e.preventDefault();
-    const scores = [
-        0, 
-        parseFloat(document.getElementById('score-math').value)||0, 
-        parseFloat(document.getElementById('score-science').value)||0, 
-        parseFloat(document.getElementById('score-english').value)||0, 
-        0
-    ];
-    
-    const data = {
-        exam_id: document.getElementById('form-exam-id').value,
-        national_id: document.getElementById('form-national-id').value,
+    const id = document.getElementById('student-backend-id').value;
+    const examId = document.getElementById('form-exam-id').value.trim();
+    const nationalId = document.getElementById('form-national-id').value.trim();
+
+    // 1. เช็คข้อมูลซ้ำ (Duplicate Check)
+    // หาคนที่มี Exam ID หรือ National ID ตรงกับที่กรอก (และไม่ใช่คนเดิมที่เรากำลังแก้ไข)
+    const duplicateStudent = studentsData.find(s => 
+        (s.exam_id === examId || s.national_id === nationalId) && s.__backendId !== id
+    );
+
+    if (duplicateStudent) {
+        let msg = 'ข้อมูลซ้ำกับในระบบ!';
+        if (duplicateStudent.exam_id === examId) msg += `\n- รหัสสอบซ้ำกับ: ${duplicateStudent.full_name}`;
+        if (duplicateStudent.national_id === nationalId) msg += `\n- เลขบัตรฯ ซ้ำกับ: ${duplicateStudent.full_name}`;
+        
+        alert(msg);
+        return; // หยุดการทำงาน ไม่บันทึก
+    }
+
+    // 2. เตรียมข้อมูล (เหมือนเดิม)
+    const formData = {
+        exam_id: examId,
+        national_id: nationalId,
+        full_name: document.getElementById('form-name').value.trim(),
         grade_level: document.getElementById('form-grade').value,
-        full_name: document.getElementById('form-name').value,
-        previous_school: document.getElementById('form-school').value,
-        // -- เพิ่มส่วนบันทึกข้อมูลโครงการ --
+        previous_school: document.getElementById('form-school').value.trim(),
         choice_1: document.getElementById('form-choice-1').value,
         choice_2: document.getElementById('form-choice-2').value,
         choice_3: document.getElementById('form-choice-3').value,
-        // -----------------------------
-        thai_score: scores[0],
-        math_score: scores[1],
-        science_score: scores[2],
-        english_score: scores[3],
-        aptitude_score: scores[4],
-        total_score: scores.reduce((a,b)=>a+b,0)
+        // ถ้าเป็นการแก้ไข ให้คงคะแนนเดิมไว้ ถ้าเพิ่มใหม่ให้เป็น 0
+        science_score: id ? undefined : 0,
+        math_score: id ? undefined : 0,
+        english_score: id ? undefined : 0,
+        total_score: id ? undefined : 0,
+        practical_score: id ? undefined : 0
     };
-    
-    showLoading('กำลังบันทึก...');
-    const action = formMode === 'create' ? window.dataSdk.create(data) : (data.__backendId = document.getElementById('student-backend-id').value, window.dataSdk.update(data));
-    
+
+    // ลบ undefined fields (กรณี update)
+    Object.keys(formData).forEach(key => formData[key] === undefined && delete formData[key]);
+
+    const btn = e.target.querySelector('button[type="submit"]');
+    const originalText = btn.innerText;
+    btn.innerText = 'กำลังบันทึก...';
+    btn.disabled = true;
+
+    const action = id 
+        ? window.dataSdk.update({ ...formData, __backendId: id }) 
+        : window.dataSdk.create(formData);
+
     action.then(res => {
-        setTimeout(() => {
-            hideLoading();
-            if(res.isOk) {
-                closeModal();
-                showAlert('สำเร็จ', 'บันทึกเรียบร้อย');
-            } else {
-                showAlert('ผิดพลาด', res.error.message);
-            }
-        }, 500);
+        if (res.isOk) {
+            closeModal();
+            showAlert('สำเร็จ', 'บันทึกข้อมูลเรียบร้อย');
+            window.dataSdk.refresh().then(() => renderAdminDashboard());
+        } else {
+            alert('เกิดข้อผิดพลาด: ' + res.error.message);
+        }
+        btn.innerText = originalText;
+        btn.disabled = false;
     });
 }
 function addMultipleRow() { const tr = document.createElement('tr'); tr.className = 'bg-white border-b hover:bg-gray-50'; tr.innerHTML = `<td class="p-2"><input type="text" class="w-full border rounded px-2 py-1 multi-national-id text-xs" placeholder="บัตรฯ"></td><td class="p-2"><input type="text" class="w-full border rounded px-2 py-1 multi-exam-id text-xs" placeholder="รหัส"></td><td class="p-2"><input type="text" class="w-full border rounded px-2 py-1 multi-name text-xs" placeholder="ชื่อ"></td><td class="p-2"><select class="w-full border rounded px-2 py-1 multi-grade text-xs"><option value="p6">ป.6</option><option value="p5">ป.5</option><option value="p4">ป.4</option><option value="m3">ม.3</option></select></td><td class="p-2"><input type="text" class="w-full border rounded px-2 py-1 multi-school text-xs" placeholder="รร."></td><td class="p-2 text-center"><button type="button" onclick="this.closest('tr').remove()" class="text-red-500 font-bold">x</button></td>`; document.getElementById('multiple-tbody').appendChild(tr); }
@@ -1130,33 +1149,75 @@ function handleExcelUpload(input, type) {
         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {header: 1, raw: false, defval: ""});
         
         if(type === 'student') {
-            // ... (โค้ดเดิม) ...
             excelDataCache = [];
+            let duplicateCount = 0;
+
             for(let i=1; i<jsonData.length; i++) {
                 const row = jsonData[i];
-                if(row[0] && row[2]) {
+                if(row[0] && row[2]) { // ต้องมีรหัสสอบและชื่อ
+                    const exId = String(row[0]).trim();
+                    const natId = String(row[1]||'').trim();
+                    
+                    // เช็คซ้ำกับข้อมูลที่มีในระบบ (studentsData)
+                    const isDupExam = studentsData.some(s => s.exam_id === exId);
+                    const isDupNat = natId && natId !== '00' && studentsData.some(s => s.national_id === natId);
+                    
+                    let errorMsg = '';
+                    if (isDupExam) errorMsg = 'รหัสสอบซ้ำ';
+                    else if (isDupNat) errorMsg = 'เลขบัตรฯซ้ำ';
+
+                    if (errorMsg) duplicateCount++;
+
                     excelDataCache.push({
-                        exam_id: String(row[0]),
-                        national_id: String(row[1]||''),
+                        exam_id: exId,
+                        national_id: natId,
                         full_name: String(row[2]),
                         grade_level: String(row[3]||'m3').toLowerCase(),
                         previous_school: String(row[4]||''),
                         choice_1: String(row[5]||'').trim(),
                         choice_2: String(row[6]||'').trim(),
                         choice_3: String(row[7]||'').trim(),
-                        thai_score:0, math_score:0, science_score:0, english_score:0, aptitude_score:0, total_score:0, rank:0, practical_score:0
+                        thai_score:0, math_score:0, science_score:0, english_score:0, aptitude_score:0, total_score:0, rank:0, practical_score:0,
+                        // Flag สำหรับ Duplicate
+                        isDuplicate: !!errorMsg,
+                        errorReason: errorMsg
                     });
                 }
             }
-            document.getElementById('excel-count').textContent = excelDataCache.length;
+            
+            // แสดงผล Preview (ตาราง)
+            document.getElementById('excel-count').innerHTML = `${excelDataCache.length} รายการ <span class="text-red-500 text-xs ml-2">(ซ้ำ ${duplicateCount})</span>`;
             document.getElementById('excel-preview-area').classList.remove('hidden');
+            
+            // สร้างตาราง Preview พร้อมสีแจ้งเตือน
             document.getElementById('excel-preview-table').innerHTML = 
-                `<thead><tr class="bg-gray-100"><th>รหัส</th><th>ชื่อ</th><th>เลือก 1</th></tr></thead><tbody>` + 
-                excelDataCache.slice(0,5).map(p=>`<tr><td>${p.exam_id}</td><td>${p.full_name}</td><td>${p.choice_1}</td></tr>`).join('') + 
+                `<thead>
+                    <tr class="bg-gray-100 text-gray-600 text-xs uppercase">
+                        <th class="p-2">สถานะ</th>
+                        <th class="p-2">รหัสสอบ</th>
+                        <th class="p-2">ชื่อ-สกุล</th>
+                        <th class="p-2">ระดับชั้น</th>
+                    </tr>
+                </thead>
+                <tbody>` + 
+                excelDataCache.slice(0, 10).map(p => `
+                    <tr class="${p.isDuplicate ? 'bg-red-50' : 'border-b border-gray-50'}">
+                        <td class="p-2">
+                            ${p.isDuplicate 
+                                ? `<span class="text-xs font-bold text-red-600 bg-red-100 px-2 py-1 rounded-full">${p.errorReason}</span>` 
+                                : `<span class="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-full">พร้อมนำเข้า</span>`
+                            }
+                        </td>
+                        <td class="p-2 text-sm ${p.isDuplicate ? 'text-red-700 font-bold' : ''}">${p.exam_id}</td>
+                        <td class="p-2 text-sm">${p.full_name}</td>
+                        <td class="p-2 text-sm">${p.grade_level}</td>
+                    </tr>
+                `).join('') + 
+                (excelDataCache.length > 10 ? `<tr><td colspan="4" class="text-center text-xs text-gray-400 p-2">...และอีก ${excelDataCache.length - 10} รายการ...</td></tr>` : '') +
                 `</tbody>`;
         
         } else if(type === 'score') {
-            // ... (โค้ดเดิม) ...
+            // (Code ส่วน Import คะแนน คงเดิม หรือจะแก้เพิ่มก็ได้ถ้าต้องการ)
             scoreDataCache = [];
             for(let i=1; i<jsonData.length; i++) {
                 const row = jsonData[i];
@@ -1167,23 +1228,20 @@ function handleExcelUpload(input, type) {
             document.getElementById('score-preview-table').innerHTML = `<thead><tr class="bg-gray-100"><th>รหัส</th><th>วิทย์</th><th>คณิต</th><th>อังกฤษ</th></tr></thead><tbody>` + scoreDataCache.slice(0,5).map(p=>`<tr><td>${p.exam_id}</td><td>${p.science_score}</td><td>${p.math_score}</td><td>${p.english_score}</td></tr>`).join('') + `</tbody>`;
         
         } else if (type === 'practical') {
-            // >>> ส่วนที่เพิ่มใหม่สำหรับคะแนนปฏิบัติ <<<
             practicalDataCache = [];
             for(let i=1; i<jsonData.length; i++) {
                 const row = jsonData[i];
                 const examId = String(row[0]).trim();
                 const score = parseFloat(row[1]);
-
-                // ตรวจสอบว่ามีรหัสนี้ในระบบจริงไหม
                 const student = studentsData.find(s => String(s.exam_id) === examId);
                 
                 if(examId && !isNaN(score) && student) {
                     practicalDataCache.push({ 
-                        __backendId: student.__backendId, // เก็บ ID จริงไว้ใช้อัปเดต
+                        __backendId: student.__backendId, 
                         exam_id: examId, 
                         full_name: student.full_name,
                         practical_score: score,
-                        original_data: student // เก็บข้อมูลเดิมไว้กันเหนียว
+                        original_data: student 
                     });
                 }
             }
@@ -1199,41 +1257,61 @@ function handleExcelUpload(input, type) {
 }
 function confirmExcelImport(type) { 
     if(type === 'student' && excelDataCache.length > 0) { 
-        showConfirm('ยืนยัน', `นำเข้า ${excelDataCache.length} รายการ?`, () => { 
-            showLoading('กำลังนำเข้า...'); 
-            window.dataSdk.createBulk(excelDataCache).then(res => { 
+        // กรองเอาเฉพาะรายการที่ไม่ซ้ำ
+        const validData = excelDataCache.filter(item => !item.isDuplicate);
+        const duplicateCount = excelDataCache.length - validData.length;
+
+        if (validData.length === 0) {
+            showAlert('ข้อผิดพลาด', 'ข้อมูลซ้ำทั้งหมด หรือไม่มีข้อมูลที่นำเข้าได้');
+            return;
+        }
+
+        const confirmMsg = duplicateCount > 0 
+            ? `พบข้อมูลซ้ำ ${duplicateCount} รายการ (จะไม่ถูกบันทึก)\nต้องการนำเข้าข้อมูลใหม่ ${validData.length} รายการ หรือไม่?`
+            : `ยืนยันนำเข้า ${validData.length} รายการ?`;
+
+        showConfirm('ยืนยันการนำเข้า', confirmMsg, () => { 
+            showLoading('กำลังนำเข้าข้อมูล...'); 
+            
+            // ลบ field ชั่วคราวออกก่อนส่งไป backend
+            const cleanData = validData.map(item => {
+                const { isDuplicate, errorReason, ...rest } = item;
+                return rest;
+            });
+
+            window.dataSdk.createBulk(cleanData).then(res => { 
                 setTimeout(() => { 
                     hideLoading(); 
-                    if(res.isOk) { closeModal(); showAlert('สำเร็จ', 'เรียบร้อย'); } 
-                    else { showAlert('ผิดพลาด', res.error.message); } 
+                    if(res.isOk) { 
+                        closeModal(); 
+                        showAlert('สำเร็จ', `นำเข้าข้อมูลเรียบร้อย ${validData.length} รายการ`); 
+                        window.dataSdk.refresh().then(() => renderAdminDashboard());
+                    } else { 
+                        showAlert('ผิดพลาด', res.error.message); 
+                    } 
                 }, 500); 
             }); 
         }); 
+
     } else if(type === 'score' && scoreDataCache.length > 0) { 
         showConfirm('ยืนยัน', `อัปเดตคะแนน ${scoreDataCache.length} รายการ?`, () => { 
             showLoading('กำลังอัปเดตคะแนน...'); 
             window.dataSdk.updateScoresBulk(scoreDataCache).then(res => { 
                 setTimeout(() => { 
                     hideLoading(); 
-                    if(res.isOk) { closeModal(); showAlert('สำเร็จ', res.message); } 
+                    if(res.isOk) { closeModal(); showAlert('สำเร็จ', res.message); window.dataSdk.refresh().then(() => renderAdminDashboard()); } 
                     else { showAlert('ผิดพลาด', res.error.message); } 
                 }, 500); 
             }); 
         }); 
     } else if (type === 'practical' && practicalDataCache.length > 0) {
-        // >>> ส่วนที่เพิ่มใหม่ <<<
         showConfirm('ยืนยัน', `นำเข้าคะแนนปฏิบัติ ${practicalDataCache.length} รายการ?`, () => {
             showLoading('กำลังบันทึกคะแนนปฏิบัติ... (ห้ามปิดหน้าจอ)');
-            
-            // เตรียมข้อมูลสำหรับส่ง (Merge ข้อมูลเดิม + คะแนนใหม่)
             const updates = practicalDataCache.map(item => ({
-                ...item.original_data, // เอาข้อมูลเดิมทั้งหมด
-                practical_score: item.practical_score // ทับด้วยคะแนนใหม่
+                ...item.original_data, 
+                practical_score: item.practical_score 
             }));
-
-            // ใช้ Promise.all ยิง update ทีละคน (ปลอดภัยสุด)
             const promises = updates.map(u => window.dataSdk.update(u));
-
             Promise.all(promises)
                 .then(() => {
                     setTimeout(() => {
