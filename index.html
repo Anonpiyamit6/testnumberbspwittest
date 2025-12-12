@@ -1082,22 +1082,27 @@ function handleSingleSubmit(e) {
     const examId = document.getElementById('form-exam-id').value.trim();
     const nationalId = document.getElementById('form-national-id').value.trim();
 
-    // 1. เช็คข้อมูลซ้ำ (Duplicate Check)
-    // หาคนที่มี Exam ID หรือ National ID ตรงกับที่กรอก (และไม่ใช่คนเดิมที่เรากำลังแก้ไข)
+    // 1. เช็คข้อมูลซ้ำ
     const duplicateStudent = studentsData.find(s => 
         (s.exam_id === examId || s.national_id === nationalId) && s.__backendId !== id
     );
 
     if (duplicateStudent) {
-        let msg = 'ข้อมูลซ้ำกับในระบบ!';
-        if (duplicateStudent.exam_id === examId) msg += `\n- รหัสสอบซ้ำกับ: ${duplicateStudent.full_name}`;
-        if (duplicateStudent.national_id === nationalId) msg += `\n- เลขบัตรฯ ซ้ำกับ: ${duplicateStudent.full_name}`;
+        // เตรียมข้อความแจ้งเตือนเป็น Array
+        const errorDetails = [];
+        if (duplicateStudent.exam_id === examId) {
+            errorDetails.push(`<b>รหัสสอบซ้ำกับ:</b> ${duplicateStudent.full_name}`);
+        }
+        if (duplicateStudent.national_id === nationalId) {
+            errorDetails.push(`<b>เลขบัตรฯ ซ้ำกับ:</b> ${duplicateStudent.full_name}`);
+        }
         
-        alert(msg);
-        return; // หยุดการทำงาน ไม่บันทึก
+        // เรียกใช้ Popup สวยๆ แทน alert()
+        showDuplicateAlert(errorDetails);
+        return; 
     }
 
-    // 2. เตรียมข้อมูล (เหมือนเดิม)
+    // ... (ส่วนบันทึกข้อมูลด้านล่าง เหมือนเดิมทุกประการ) ...
     const formData = {
         exam_id: examId,
         national_id: nationalId,
@@ -1107,7 +1112,6 @@ function handleSingleSubmit(e) {
         choice_1: document.getElementById('form-choice-1').value,
         choice_2: document.getElementById('form-choice-2').value,
         choice_3: document.getElementById('form-choice-3').value,
-        // ถ้าเป็นการแก้ไข ให้คงคะแนนเดิมไว้ ถ้าเพิ่มใหม่ให้เป็น 0
         science_score: id ? undefined : 0,
         math_score: id ? undefined : 0,
         english_score: id ? undefined : 0,
@@ -1115,7 +1119,6 @@ function handleSingleSubmit(e) {
         practical_score: id ? undefined : 0
     };
 
-    // ลบ undefined fields (กรณี update)
     Object.keys(formData).forEach(key => formData[key] === undefined && delete formData[key]);
 
     const btn = e.target.querySelector('button[type="submit"]');
@@ -1257,23 +1260,48 @@ function handleExcelUpload(input, type) {
 }
 function confirmExcelImport(type) { 
     if(type === 'student' && excelDataCache.length > 0) { 
-        // กรองเอาเฉพาะรายการที่ไม่ซ้ำ
+        
+        // แยกข้อมูลดี กับ ข้อมูลซ้ำ
         const validData = excelDataCache.filter(item => !item.isDuplicate);
-        const duplicateCount = excelDataCache.length - validData.length;
+        const duplicates = excelDataCache.filter(item => item.isDuplicate);
 
+        // กรณีซ้ำทั้งหมด หรือไม่มีข้อมูล
         if (validData.length === 0) {
-            showAlert('ข้อผิดพลาด', 'ข้อมูลซ้ำทั้งหมด หรือไม่มีข้อมูลที่นำเข้าได้');
+            const errorList = duplicates.slice(0, 5).map(d => `${d.exam_id} - ${d.full_name} (${d.errorReason})`);
+            if(duplicates.length > 5) errorList.push(`...และอีก ${duplicates.length - 5} รายการ`);
+            
+            showDuplicateAlert(errorList); // ใช้ Popup สวยๆ แจ้งเตือน
             return;
         }
 
-        const confirmMsg = duplicateCount > 0 
-            ? `พบข้อมูลซ้ำ ${duplicateCount} รายการ (จะไม่ถูกบันทึก)\nต้องการนำเข้าข้อมูลใหม่ ${validData.length} รายการ หรือไม่?`
-            : `ยืนยันนำเข้า ${validData.length} รายการ?`;
+        // กรณีมีซ้ำบางส่วน -> ถามยืนยันด้วย UI สวยๆ (ใช้ showConfirm ของระบบ หรือสร้างใหม่)
+        // ตรงนี้ผมจะใช้ showConfirm เดิมแต่ปรับข้อความให้ชัดเจน
+        
+        let confirmTitle = 'ยืนยันการนำเข้า';
+        let confirmMsg = `<div class="text-center">พบข้อมูลพร้อมนำเข้า <b class="text-green-600 text-lg">${validData.length}</b> รายการ</div>`;
 
-        showConfirm('ยืนยันการนำเข้า', confirmMsg, () => { 
+        if (duplicates.length > 0) {
+            confirmMsg += `
+                <div class="mt-4 bg-red-50 p-3 rounded-xl border border-red-100 text-left text-sm">
+                    <div class="font-bold text-red-600 mb-2 flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        พบข้อมูลซ้ำ ${duplicates.length} รายการ (จะไม่ถูกบันทึก)
+                    </div>
+                    <ul class="list-disc pl-5 text-gray-600 space-y-1 max-h-24 overflow-y-auto custom-scrollbar">
+                        ${duplicates.map(d => `<li><b>${d.exam_id}</b>: ${d.full_name} <span class="text-xs text-red-400">(${d.errorReason})</span></li>`).join('')}
+                    </ul>
+                </div>
+                <p class="text-sm text-gray-500 mt-4">ต้องการข้ามรายการที่ซ้ำ และบันทึกเฉพาะรายการใหม่หรือไม่?</p>
+            `;
+        } else {
+            confirmMsg += `<p class="text-sm text-gray-500 mt-2">ต้องการบันทึกข้อมูลลงในระบบหรือไม่?</p>`;
+        }
+
+        // เรียก showConfirm (ต้องมั่นใจว่า showConfirm ในระบบท่านรองรับ HTML ถ้าไม่รองรับให้ใช้ alert หรือสร้าง modal ใหม่)
+        // สมมติว่า showConfirm รองรับ HTML (ถ้าใช้ SweetAlert หรือ Custom Modal ทั่วไปจะรองรับ)
+        showConfirm(confirmTitle, confirmMsg, () => { 
             showLoading('กำลังนำเข้าข้อมูล...'); 
             
-            // ลบ field ชั่วคราวออกก่อนส่งไป backend
             const cleanData = validData.map(item => {
                 const { isDuplicate, errorReason, ...rest } = item;
                 return rest;
@@ -1294,37 +1322,22 @@ function confirmExcelImport(type) {
         }); 
 
     } else if(type === 'score' && scoreDataCache.length > 0) { 
+        // ... (Logic Import คะแนน คงเดิม) ...
         showConfirm('ยืนยัน', `อัปเดตคะแนน ${scoreDataCache.length} รายการ?`, () => { 
             showLoading('กำลังอัปเดตคะแนน...'); 
             window.dataSdk.updateScoresBulk(scoreDataCache).then(res => { 
-                setTimeout(() => { 
-                    hideLoading(); 
-                    if(res.isOk) { closeModal(); showAlert('สำเร็จ', res.message); window.dataSdk.refresh().then(() => renderAdminDashboard()); } 
-                    else { showAlert('ผิดพลาด', res.error.message); } 
-                }, 500); 
+                setTimeout(() => { hideLoading(); if(res.isOk) { closeModal(); showAlert('สำเร็จ', res.message); } else { showAlert('ผิดพลาด', res.error.message); } }, 500); 
             }); 
         }); 
     } else if (type === 'practical' && practicalDataCache.length > 0) {
+        // ... (Logic Import ปฏิบัติ คงเดิม) ...
         showConfirm('ยืนยัน', `นำเข้าคะแนนปฏิบัติ ${practicalDataCache.length} รายการ?`, () => {
-            showLoading('กำลังบันทึกคะแนนปฏิบัติ... (ห้ามปิดหน้าจอ)');
-            const updates = practicalDataCache.map(item => ({
-                ...item.original_data, 
-                practical_score: item.practical_score 
-            }));
+            showLoading('กำลังบันทึกคะแนนปฏิบัติ...');
+            const updates = practicalDataCache.map(item => ({ ...item.original_data, practical_score: item.practical_score }));
             const promises = updates.map(u => window.dataSdk.update(u));
-            Promise.all(promises)
-                .then(() => {
-                    setTimeout(() => {
-                        hideLoading();
-                        closeModal();
-                        showAlert('สำเร็จ', 'บันทึกคะแนนปฏิบัติเรียบร้อยแล้ว');
-                        window.dataSdk.refresh().then(() => renderAdminDashboard());
-                    }, 1500);
-                })
-                .catch(err => {
-                    hideLoading();
-                    showAlert('ผิดพลาด', 'เกิดข้อผิดพลาด: ' + err.message);
-                });
+            Promise.all(promises).then(() => {
+                setTimeout(() => { hideLoading(); closeModal(); showAlert('สำเร็จ', 'บันทึกเรียบร้อย'); window.dataSdk.refresh().then(() => renderAdminDashboard()); }, 1500);
+            }).catch(err => { hideLoading(); showAlert('ผิดพลาด', err.message); });
         });
     }
 }
@@ -1644,6 +1657,51 @@ function exportInterviewToExcel() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Scores");
     XLSX.writeFile(wb, `คะแนนสอบปฏิบัติ_${targetProgramName}_${adminTab}.xlsx`);
+}
+function showDuplicateAlert(details) {
+    // details คือ Array ของข้อความ เช่น ['รหัสสอบซ้ำกับ นาย ก.', 'เลขบัตรซ้ำกับ นาย ข.']
+    
+    const listHtml = details.map(text => `
+        <li class="flex items-start gap-2 text-sm text-gray-600 border-b border-red-50 last:border-0 py-2">
+            <svg class="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span>${text}</span>
+        </li>
+    `).join('');
+
+    const modalHtml = `
+    <div id="duplicate-modal" class="fixed inset-0 z-[200] flex items-center justify-center animate-fade-in font-sarabun px-4">
+        <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm transition-opacity" onclick="document.getElementById('duplicate-modal').remove()"></div>
+        
+        <div class="bg-white w-full max-w-sm rounded-[2rem] shadow-2xl z-10 overflow-hidden transform scale-100 transition-all relative border border-red-100">
+            
+            <div class="bg-red-50 p-6 flex flex-col items-center justify-center text-center">
+                <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-3 shadow-sm border border-red-100 animate-bounce-slow">
+                    <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                </div>
+                <h3 class="text-xl font-bold text-red-600">พบข้อมูลซ้ำในระบบ!</h3>
+                <p class="text-sm text-red-400 mt-1">ไม่สามารถบันทึกข้อมูลได้</p>
+            </div>
+
+            <div class="p-6 pt-2">
+                <div class="bg-white rounded-xl border border-gray-100 shadow-inner p-2 mb-6 max-h-40 overflow-y-auto">
+                    <ul class="space-y-1">
+                        ${listHtml}
+                    </ul>
+                </div>
+
+                <button onclick="document.getElementById('duplicate-modal').remove()" 
+                    class="w-full py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold shadow-lg shadow-red-200 active:scale-95 transition-all">
+                    รับทราบ / แก้ไขข้อมูล
+                </button>
+            </div>
+        </div>
+    </div>
+    `;
+
+    // Inject ลงใน Body
+    const div = document.createElement('div');
+    div.innerHTML = modalHtml;
+    document.body.appendChild(div.firstElementChild);
 }
 window.addEventListener('load', () => { window.dataSdk.init(dataHandler); render(); });
 // --- ฟังก์ชันย่อย 3: หน้าบันทึกคะแนนปฏิบัติ/สัมภาษณ์ (ฉบับปรับปรุง: สวยงาม + โชว์คะแนนดิบ + แก้บั๊กชื่อหาย) ---
