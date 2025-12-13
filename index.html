@@ -614,27 +614,19 @@ function renderAdminDashboard() {
     const m4 = studentsData.filter(s => ['m3','m4'].includes(s.grade_level));
     let activeData = adminTab === 'm1' ? m1 : m4;
 
-    // --- คำนวณสถิติ (แก้ไขใหม่) ---
+    // สถิติ
     const totalStudents = activeData.length;
-
-    // ดึงคะแนนรวมของทุกคน (ข้อเขียน + ปฏิบัติ)
     const allScores = activeData.map(s => (parseFloat(s.total_score)||0) + (parseFloat(s.practical_score)||0));
-    
-    // กรองเอาเฉพาะคนที่มีคะแนน (> 0) เพื่อไม่ให้คนขาดสอบ (0 คะแนน) มาดึงค่าต่ำสุด
     const validScores = allScores.filter(score => score > 0);
-
-    // หาค่าสูงสุด / ต่ำสุด
     const maxScore = validScores.length > 0 ? Math.max(...validScores) : 0;
     const minScore = validScores.length > 0 ? Math.min(...validScores) : 0;
 
-    // Logic การกรองสำหรับหน้า Manage (เหมือนเดิม)
     let displayData = activeData;
     if(adminViewMode === 'manage' && searchQuery) {
         displayData = displayData.filter(s => s.full_name.includes(searchQuery) || String(s.exam_id).includes(searchQuery) || String(s.national_id).includes(searchQuery));
     }
     checkedIds.clear();
 
-    // 2. Render HTML
     document.getElementById('app').innerHTML = `
     <div class="h-screen flex bg-[#f8fafc] font-sarabun overflow-hidden relative">
         
@@ -656,8 +648,15 @@ function renderAdminDashboard() {
                 <button onclick="adminTab='m4';renderAdminDashboard();toggleSidebar();" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${adminTab==='m4' ? 'bg-lime-50 text-lime-700 font-bold border-l-4 border-lime-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}"><div class="w-2 h-2 rounded-full ${adminTab==='m4'?'bg-lime-500':'bg-gray-300'}"></div>ข้อมูล ม.4</button>
                 <div class="h-px bg-gray-100 my-4 mx-2"></div>
                 <p class="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">เมนูจัดการ</p>
+                
                 <button onclick="adminViewMode='manage';renderAdminDashboard();toggleSidebar();" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${adminViewMode==='manage' ? 'bg-blue-50 text-blue-700 font-bold border-l-4 border-blue-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>รายชื่อผู้สมัคร</button>
-                <button onclick="adminViewMode='ranking';rankingTab='all';renderAdminDashboard();toggleSidebar();" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${adminViewMode==='ranking' ? 'bg-amber-50 text-amber-700 font-bold border-l-4 border-amber-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>ประกาศผล/จัดลำดับ</button>
+                
+                <button onclick="adminViewMode='ranking';rankingTab='all';renderAdminDashboard();toggleSidebar();" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${adminViewMode==='ranking' && rankingTab!=='filtered' ? 'bg-amber-50 text-amber-700 font-bold border-l-4 border-amber-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>จัดลำดับ (Raw Data)</button>
+
+                <button onclick="adminViewMode='ranking';rankingTab='filtered';renderAdminDashboard();toggleSidebar();" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${rankingTab==='filtered' ? 'bg-teal-50 text-teal-700 font-bold border-l-4 border-teal-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    สรุปผล (ตัด ป.4-5)
+                </button>
                 <button onclick="adminViewMode='interview';rankingTab='all';renderAdminDashboard();toggleSidebar();" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${adminViewMode==='interview' ? 'bg-purple-50 text-purple-700 font-bold border-l-4 border-purple-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>บันทึกคะแนนปฏิบัติ</button>
             </div>
             <div class="p-4 border-t border-gray-100 shrink-0">
@@ -668,7 +667,6 @@ function renderAdminDashboard() {
         <div id="sidebar-overlay" class="fixed inset-0 bg-black/30 z-30 hidden md:hidden backdrop-blur-sm transition-opacity" onclick="toggleSidebar()"></div>
 
         <main class="flex-1 flex flex-col h-full overflow-hidden w-full relative">
-            
             <header class="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-4 shrink-0 md:hidden z-20">
                 <div class="flex items-center gap-3">
                     <img src="https://img5.pic.in.th/file/secure-sv1/-69-1112b7dae5160e09f.png" class="w-8 h-8">
@@ -676,33 +674,27 @@ function renderAdminDashboard() {
                 </div>
                 <button onclick="toggleSidebar()" class="p-2 text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 active:scale-95 transition-transform"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg></button>
             </header>
-
             <div class="flex-1 overflow-y-auto p-4 md:p-8 bg-[#f8fafc]">
-                
                 ${adminViewMode === 'manage' ? `
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-8">
-                    
                     <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col relative overflow-hidden group">
                         <div class="absolute right-0 top-0 w-16 h-16 bg-lime-50 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-110"></div>
                         <span class="text-xs text-gray-400 font-bold uppercase tracking-wider z-10">จำนวนผู้สมัคร</span>
                         <span class="text-3xl font-black text-gray-800 mt-1 z-10">${totalStudents} <span class="text-sm font-normal text-gray-400">คน</span></span>
                         <div class="w-8 h-1 bg-lime-500 rounded-full mt-3 z-10"></div>
                     </div>
-
                     <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col relative overflow-hidden group">
                         <div class="absolute right-0 top-0 w-16 h-16 bg-blue-50 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-110"></div>
                         <span class="text-xs text-gray-400 font-bold uppercase tracking-wider z-10">คะแนนสูงสุด</span>
                         <span class="text-3xl font-black text-gray-800 mt-1 z-10">${maxScore.toFixed(2)}</span>
                         <div class="w-8 h-1 bg-blue-500 rounded-full mt-3 z-10"></div>
                     </div>
-
                     <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col relative overflow-hidden group">
                         <div class="absolute right-0 top-0 w-16 h-16 bg-purple-50 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-110"></div>
                         <span class="text-xs text-gray-400 font-bold uppercase tracking-wider z-10">คะแนนต่ำสุด</span>
                         <span class="text-3xl font-black text-gray-800 mt-1 z-10">${minScore.toFixed(2)}</span>
                         <div class="w-8 h-1 bg-purple-500 rounded-full mt-3 z-10"></div>
                     </div>
-
                     <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col relative overflow-hidden group">
                         <div class="absolute right-0 top-0 w-16 h-16 bg-orange-50 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-110"></div>
                         <span class="text-xs text-gray-400 font-bold uppercase tracking-wider z-10">ระดับชั้น</span>
@@ -722,10 +714,6 @@ function renderAdminDashboard() {
                             : renderInterviewView(activeData) 
                         )
                     }
-                </div>
-
-                <div class="mt-8 text-center md:hidden">
-                    <p class="text-xs text-gray-300 font-medium">Admin System v2.0</p>
                 </div>
             </div>
         </main>
@@ -869,16 +857,29 @@ function executeClearingHouse(students, quotaConfig) {
 // --- ฟังก์ชันย่อย 2: แสดงหน้าจัดลำดับ (Ranking View) ---
 // --- ฟังก์ชันย่อย 2: แสดงหน้าจัดลำดับ (Ranking View) ---
 function renderRankingView(allStudents) {
-    // ประมวลผล Clearing House
-    const allocationResult = executeClearingHouse(allStudents, quotas[adminTab]);
+    // 1. ตรวจสอบ Tab ว่าเป็น "filtered" (สรุปตัด ป.4-5) หรือไม่
+    let processingData = allStudents;
+    let isFilteredMode = false;
+
+    if (rankingTab === 'filtered') {
+        // ถ้าเป็นโหมดนี้ ให้กรอง ป.4-5 ทิ้งทันที
+        if (adminTab === 'm1') {
+            processingData = allStudents.filter(s => !['p4', 'p5'].includes(s.grade_level));
+        }
+        isFilteredMode = true;
+    }
+
+    // 2. ประมวลผล Clearing House ด้วยข้อมูลที่เลือกมา
+    const allocationResult = executeClearingHouse(processingData, quotas[adminTab]);
     
     let renderList = [];
     let showQuota = 0;
     let scoreLabel = "คะแนนร้อยละ";
+    let title = isFilteredMode ? "สรุปผลคัดเลือก (ตัด Pre-test)" : "จัดลำดับคะแนน (Raw Data)";
 
-    if (rankingTab === 'all') {
+    if (rankingTab === 'all' || rankingTab === 'filtered') {
         // === ภาพรวม ===
-        renderList = [...allStudents].sort((a,b) => b.total_score - a.total_score).map((s, i) => {
+        renderList = [...processingData].sort((a,b) => b.total_score - a.total_score).map((s, i) => {
             const result = allocationResult[s.__backendId];
             return {
                 ...s,
@@ -889,19 +890,18 @@ function renderRankingView(allStudents) {
         });
         scoreLabel = "คะแนนรวม (110)";
         
-        // --- แก้ไขจุดที่ 1: รันลำดับแบบต่อเนื่อง (9, 9, 10...) ---
+        // รันลำดับต่อเนื่อง
         let currentRank = 1;
         for (let i = 0; i < renderList.length; i++) {
             if (i > 0) {
-                // เช็คว่าคะแนนเท่าคนก่อนหน้าไหม
                 if (Math.abs(renderList[i].display_score - renderList[i-1].display_score) < 0.001) {
-                    renderList[i].rank = renderList[i-1].rank; // คะแนนเท่า ลำดับเดิม
+                    renderList[i].rank = renderList[i-1].rank;
                 } else {
-                    currentRank++; // คะแนนเปลี่ยน บวกเพิ่ม 1 (ไม่กระโดด)
+                    currentRank++;
                     renderList[i].rank = currentRank;
                 }
             } else {
-                renderList[i].rank = 1; // คนแรกที่ 1 เสมอ
+                renderList[i].rank = 1;
             }
         }
 
@@ -910,7 +910,7 @@ function renderRankingView(allStudents) {
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
         showQuota = (quotas[adminTab] && quotas[adminTab][targetProgram]) || 0;
 
-        renderList = allStudents.filter(s => {
+        renderList = processingData.filter(s => {
             const result = allocationResult[s.__backendId];
             return result && result.program === targetProgram;
         });
@@ -922,7 +922,6 @@ function renderRankingView(allStudents) {
 
         renderList.sort((a, b) => b.display_score - a.display_score);
 
-        // --- แก้ไขจุดที่ 2: รันลำดับแบบต่อเนื่อง (9, 9, 10...) ---
         let currentRank = 1;
         for (let i = 0; i < renderList.length; i++) {
             if (i > 0) {
@@ -939,17 +938,30 @@ function renderRankingView(allStudents) {
         }
     }
 
-    const tabsM1 = [{ id: 'all', label: 'สรุปภาพรวม' }, { id: 'sm', label: 'S&M' }, { id: 'gate', label: 'GATE' }, { id: 'eis', label: 'EIS' }];
-    const tabsM4 = [{ id: 'all', label: 'สรุปภาพรวม' }, { id: 'sme', label: 'SME' }, { id: 'gate', label: 'GATE' }];
-    const currentTabs = adminTab === 'm1' ? tabsM1 : tabsM4;
+    // สร้างปุ่ม Tabs ตามสถานะ
+    let tabs = [];
+    if (isFilteredMode) {
+        // ถ้าอยู่ในเมนูใหม่ (ตัด ป.4-5) ให้แสดงเฉพาะสรุปภาพรวม
+        tabs = [{ id: 'filtered', label: 'สรุปภาพรวม (ตัด ป.4-5)' }];
+        
+        // เพิ่ม Tab ย่อยโครงการ ถ้าต้องการดูแยกรายโครงการแบบ Clean
+        if(adminTab === 'm1') tabs.push({id:'sm', label:'S&M'}, {id:'gate', label:'GATE'}, {id:'eis', label:'EIS'});
+        else tabs.push({id:'sme', label:'SME'}, {id:'gate', label:'GATE'});
+
+    } else {
+        // เมนูเดิม (Raw Data)
+        tabs = [{ id: 'all', label: 'ทั้งหมด (Raw)' }];
+        if(adminTab === 'm1') tabs.push({id:'sm', label:'S&M'}, {id:'gate', label:'GATE'}, {id:'eis', label:'EIS'});
+        else tabs.push({id:'sme', label:'SME'}, {id:'gate', label:'GATE'});
+    }
 
     return `
     <div class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
-            <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">ประกาศผลสอบ (Clearing House) ${adminTab==='m1'?'ม.1':'ม.4'}</h1>
-            <p class="text-sm text-gray-500">เกณฑ์: พิจารณาตามลำดับการเลือก (1->2->3) ตัดสินด้วยคะแนนร้อยละ (คะแนนเท่ากัน รับทั้งหมด)</p>
+            <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">${title} ${adminTab==='m1'?'ม.1':'ม.4'}</h1>
+            <p class="text-sm text-gray-500">เกณฑ์: Clearing House (เลือก 1->2->3) | คะแนนเท่ากันรับหมด | ${isFilteredMode ? '<span class="text-red-500 font-bold">ตัด ป.4-5 ออกแล้ว</span>' : 'ข้อมูลดิบทั้งหมด'}</p>
             <div class="flex flex-wrap gap-2 mt-2">
-                ${currentTabs.map(t => `<button onclick="rankingTab='${t.id}';renderAdminDashboard();" class="px-4 py-2 rounded-xl text-sm font-bold transition-all border ${rankingTab===t.id ? 'bg-lime-500 text-white border-lime-500 shadow-lg shadow-lime-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}">${t.label}</button>`).join('')}
+                ${tabs.map(t => `<button onclick="rankingTab='${t.id}';renderAdminDashboard();" class="px-4 py-2 rounded-xl text-sm font-bold transition-all border ${rankingTab===t.id ? 'bg-teal-500 text-white border-teal-500 shadow-lg shadow-teal-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}">${t.label}</button>`).join('')}
             </div>
         </div>
         
@@ -958,17 +970,13 @@ function renderRankingView(allStudents) {
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                 Excel
             </button>
-            <button onclick="exportToWord()" class="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-lime-500 to-green-600 hover:from-lime-600 hover:to-green-700 text-white rounded-xl font-bold shadow-lg shadow-lime-200/50 transition-all active:scale-95">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                Word (.doc)
-            </button>
         </div>
     </div>
 
     <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100">
         <div class="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-            <h3 class="font-bold text-gray-700">${rankingTab === 'all' ? 'รายชื่อผู้เข้าสอบทั้งหมด' : 'รายชื่อตัวจริง (ผ่านการคัดเลือก)'}</h3>
-            <div class="text-xs font-bold text-gray-400">จำนวน: ${renderList.length} คน ${rankingTab !== 'all' ? `/ ${showQuota} (อาจรับเกินหากคะแนนเท่ากัน)` : ''}</div>
+            <h3 class="font-bold text-gray-700">${isFilteredMode ? 'รายชื่อผู้ผ่านการคัดเลือก' : 'รายชื่อผู้เข้าสอบ'}</h3>
+            <div class="text-xs font-bold text-gray-400">จำนวน: ${renderList.length} คน ${rankingTab !== 'all' && rankingTab !== 'filtered' ? `/ ${showQuota}` : ''}</div>
         </div>
         <div class="overflow-x-auto">
             <table class="w-full text-left min-w-[700px]">
@@ -996,7 +1004,7 @@ function renderRankingView(allStudents) {
                             `).join('')}
                         </td>
                         <td class="px-6 py-4 text-center">
-                             ${rankingTab === 'all' 
+                             ${(rankingTab === 'all' || rankingTab === 'filtered')
                                 ? (s.status === 'pass' 
                                     ? `<span class="px-3 py-1 rounded-full bg-green-100 text-green-700 font-bold text-xs shadow-sm">ติด ${s.got_program}</span>`
                                     : `<span class="px-3 py-1 rounded-full bg-gray-100 text-gray-400 font-bold text-xs">ไม่ผ่านเกณฑ์</span>`)
@@ -1679,21 +1687,30 @@ function saveSingleInterviewScore(id, maxScore) {
 function exportRankingToExcel() {
     const m1 = studentsData.filter(s => ['p4','p5','p6','m1'].includes(s.grade_level));
     const m4 = studentsData.filter(s => ['m3','m4'].includes(s.grade_level));
-    const activeData = adminTab === 'm1' ? m1 : m4;
+    let activeData = adminTab === 'm1' ? m1 : m4;
+
+    // ตรวจสอบโหมด Filter
+    let isFilteredMode = false;
+    if (rankingTab === 'filtered' || (rankingTab !== 'all' && document.querySelector('button.bg-teal-500'))) {
+        // เช็คแบบง่ายๆ ว่าถ้าตอนนี้เราดูหน้า Filtered อยู่ ก็กรองออกเลย
+        if (adminTab === 'm1') {
+            activeData = activeData.filter(s => !['p4', 'p5'].includes(s.grade_level));
+        }
+        isFilteredMode = true;
+    }
 
     const allocationResult = executeClearingHouse(activeData, quotas[adminTab]);
     
     let dataList = [];
     let fileName = "";
 
-    if (rankingTab === 'all') {
+    if (rankingTab === 'all' || rankingTab === 'filtered') {
         dataList = [...activeData].sort((a,b) => b.total_score - a.total_score).map((s, i) => ({
             ...s,
-            // rank จะถูกคำนวณใหม่
             score_to_show: s.total_score,
             status_text: allocationResult[s.__backendId] ? `ติด ${allocationResult[s.__backendId].program}` : 'ไม่ผ่านเกณฑ์'
         }));
-        fileName = `ประกาศผลสอบ_${adminTab}_ภาพรวม.xlsx`;
+        fileName = `ประกาศผลสอบ_${adminTab}_${isFilteredMode ? 'สรุปคัดกรอง' : 'RawData'}.xlsx`;
 
     } else {
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
@@ -1709,27 +1726,25 @@ function exportRankingToExcel() {
         }));
 
         dataList.sort((a, b) => b.score_to_show - a.score_to_show);
-        
         fileName = `ประกาศผลสอบ_${adminTab}_${targetProgram}_ตัวจริง.xlsx`;
     }
 
     if (dataList.length === 0) return showAlert('แจ้งเตือน', 'ไม่มีข้อมูล');
 
-    // --- แก้ไขจุดที่ 3: รันลำดับแบบต่อเนื่องใน Excel (9, 9, 10...) ---
+    // รันลำดับต่อเนื่อง
     let currentRank = 1;
     for (let i = 0; i < dataList.length; i++) {
         if (i > 0) {
             if (Math.abs(dataList[i].score_to_show - dataList[i-1].score_to_show) < 0.001) {
                 dataList[i].rank = dataList[i-1].rank;
             } else {
-                currentRank++; // บวกเพิ่ม 1 โดยไม่สน index
+                currentRank++;
                 dataList[i].rank = currentRank;
             }
         } else {
             dataList[i].rank = 1;
         }
-        
-        if (rankingTab !== 'all') dataList[i].status_text = 'ตัวจริง';
+        if (rankingTab !== 'all' && rankingTab !== 'filtered') dataList[i].status_text = 'ตัวจริง';
     }
 
     const excelRows = dataList.map(s => ({
