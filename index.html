@@ -860,7 +860,7 @@ function renderRankingView(allStudents) {
     let processingData = allStudents;
     let isFilteredMode = false;
 
-    // ตรวจสอบโหมดกรองข้อมูล (ตัด ป.4-5)
+    // 1. ตรวจสอบโหมดกรองข้อมูล
     if (rankingTab === 'filtered') {
         if (adminTab === 'm1') {
             processingData = allStudents.filter(s => !['p4', 'p5'].includes(s.grade_level));
@@ -872,23 +872,55 @@ function renderRankingView(allStudents) {
     
     let renderList = [];
     let showQuota = 0;
-    let scoreLabel = "คะแนนร้อยละ";
+    let scoreLabel = "คะแนนรวม";
+    let subScoreType = "(ดิบ)"; // ข้อความกำกับหัวตาราง
     let title = isFilteredMode ? "สรุปผลคัดเลือก (ตัด Pre-test)" : "จัดลำดับคะแนน (Raw Data)";
 
+    // Helper: คำนวณคะแนนย่อย
+    const getSubScore = (score, subject, program) => {
+        const s = parseFloat(score) || 0;
+        // กรณีภาพรวม ให้คืนค่าคะแนนดิบเลย
+        if (program === 'all' || program === 'filtered') return s;
+
+        const p = program.toLowerCase();
+        if (p.includes('s&m') || p.includes('sme')) {
+            if (subject === 'sci') return s * 1.0;
+            if (subject === 'math') return s * (40/30);
+            if (subject === 'eng') return s * 0.5;
+        } else if (p.includes('gate')) {
+            if (subject === 'sci') return s * 0.875;
+            if (subject === 'math') return s * (35/30);
+            if (subject === 'eng') return s * 0.75;
+        } else if (p.includes('eis')) {
+            if (subject === 'sci') return s * 0.75;
+            if (subject === 'math') return s * 1.0;
+            if (subject === 'eng') return s * 1.0;
+        }
+        return s;
+    };
+
     if (rankingTab === 'all' || rankingTab === 'filtered') {
-        // === ภาพรวม ===
+        // === ภาพรวม (แสดงคะแนนดิบ) ===
+        scoreLabel = "คะแนนรวม (110)";
+        subScoreType = "(ดิบ)";
+
         renderList = [...processingData].sort((a,b) => b.total_score - a.total_score).map((s, i) => {
             const result = allocationResult[s.__backendId];
             return {
                 ...s,
+                // คะแนนดิบ
+                show_sci: s.science_score,
+                show_math: s.math_score,
+                show_eng: s.english_score,
                 display_score: s.total_score,
+                
                 status_type: result ? 'pass' : 'fail',
                 status_text: result ? `ติด ${result.program}` : 'ไม่ผ่านเกณฑ์',
                 got_program: result ? result.program : '-'
             };
         });
-        scoreLabel = "คะแนนรวม (110)";
         
+        // รันเลขลำดับ
         let currentRank = 1;
         for (let i = 0; i < renderList.length; i++) {
             if (i > 0) {
@@ -904,9 +936,11 @@ function renderRankingView(allStudents) {
         }
 
     } else {
-        // === แยกโครงการ ===
+        // === แยกโครงการ (แสดงคะแนนถ่วงน้ำหนัก) ===
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
         showQuota = (quotas[adminTab] && quotas[adminTab][targetProgram]) || 0;
+        scoreLabel = "คะแนนร้อยละ";
+        subScoreType = "(Weight)";
 
         const getChoiceRank = (student, prog) => {
             if (student.choice_1 === prog) return 1;
@@ -918,10 +952,8 @@ function renderRankingView(allStudents) {
         renderList = processingData.filter(s => {
             const targetRank = getChoiceRank(s, targetProgram);
             if (targetRank === 99) return false;
-
             const officialResult = allocationResult[s.__backendId];
             if (officialResult && officialResult.program === targetProgram) return true;
-
             const officialRank = officialResult ? getChoiceRank(s, officialResult.program) : 99;
             return targetRank < officialRank; 
         });
@@ -929,9 +961,20 @@ function renderRankingView(allStudents) {
         renderList = renderList.map(s => {
             const officialResult = allocationResult[s.__backendId];
             const isReal = officialResult && officialResult.program === targetProgram;
+            
+            // คำนวณคะแนนถ่วงน้ำหนัก
+            const w_sci = getSubScore(s.science_score, 'sci', targetProgram);
+            const w_math = getSubScore(s.math_score, 'math', targetProgram);
+            const w_eng = getSubScore(s.english_score, 'eng', targetProgram);
+            const w_total = w_sci + w_math + w_eng;
+
             return {
                 ...s,
-                display_score: getWeightedScore(s, targetProgram),
+                show_sci: w_sci,
+                show_math: w_math,
+                show_eng: w_eng,
+                display_score: w_total,
+                
                 is_real: isReal,
                 official_result: officialResult,
                 choice_priority: getChoiceRank(s, targetProgram)
@@ -992,19 +1035,23 @@ function renderRankingView(allStudents) {
     <div class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
             <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">${title} ${adminTab==='m1'?'ม.1':'ม.4'}</h1>
-            <p class="text-sm text-gray-500">เกณฑ์: เรียงลำดับ <span class="text-lime-600 font-bold">ผ่านเกณฑ์โครงการ</span> ก่อน <span class="text-orange-500 font-bold">สำรอง</span></p>
+            <p class="text-sm text-gray-500">
+                ${rankingTab === 'all' || rankingTab === 'filtered' 
+                    ? 'แสดงคะแนนดิบรายวิชา (เต็ม 40, 30, 40 รวม 110)' 
+                    : 'แสดงคะแนนสัดส่วนร้อยละตามโครงการ (Weighted Score รวม 100)'
+                }
+            </p>
             <div class="flex flex-wrap gap-2 mt-2">
                 ${tabs.map(t => `<button onclick="rankingTab='${t.id}';renderAdminDashboard();" class="px-4 py-2 rounded-xl text-sm font-bold transition-all border ${rankingTab===t.id ? 'bg-teal-500 text-white border-teal-500 shadow-lg shadow-teal-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}">${t.label}</button>`).join('')}
             </div>
         </div>
         
         <div class="flex gap-2">
-            <button onclick="exportRankingToExcel()" class="flex items-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg shadow-green-200 transition-all active:scale-95 text-xs md:text-sm">
+            <button onclick="exportRankingToExcel()" class="flex items-center gap-2 px-3 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg shadow-green-200 transition-all active:scale-95 text-xs md:text-sm">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                 Excel
             </button>
-            
-            <button onclick="exportToWord()" class="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-lime-500 to-green-600 hover:from-lime-600 hover:to-green-700 text-white rounded-xl font-bold shadow-lg shadow-lime-200/50 transition-all active:scale-95 text-xs md:text-sm">
+            <button onclick="exportToWord()" class="flex items-center gap-2 px-3 py-3 bg-gradient-to-r from-lime-500 to-green-600 hover:from-lime-600 hover:to-green-700 text-white rounded-xl font-bold shadow-lg shadow-lime-200/50 transition-all active:scale-95 text-xs md:text-sm">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                 Word
             </button>
@@ -1017,37 +1064,46 @@ function renderRankingView(allStudents) {
             <div class="text-xs font-bold text-gray-400">จำนวน: ${renderList.length} คน ${rankingTab !== 'all' && rankingTab !== 'filtered' ? `/ รับ ${showQuota}` : ''}</div>
         </div>
         <div class="overflow-x-auto">
-            <table class="w-full text-left min-w-[700px]">
+            <table class="w-full text-left border-collapse">
                 <thead class="bg-white text-gray-600 text-sm uppercase font-bold border-b border-gray-100">
                     <tr>
-                        <th class="px-6 py-3 w-20 text-center">ลำดับ</th>
-                        <th class="px-6 py-3">รหัส-ชื่อสกุล</th>
-                        <th class="px-6 py-3 text-center">${scoreLabel}</th>
-                        <th class="px-6 py-3">โครงการที่เลือก</th>
-                        <th class="px-6 py-3 text-center">สถานะ</th>
+                        <th class="px-4 py-3 w-16 text-center">ลำดับ</th>
+                        <th class="px-4 py-3">รหัส-ชื่อสกุล</th>
+                        <th class="px-2 py-3 text-center text-blue-600">วิทย์<br><span class="text-[10px] text-gray-400">${subScoreType}</span></th>
+                        <th class="px-2 py-3 text-center text-red-600">คณิต<br><span class="text-[10px] text-gray-400">${subScoreType}</span></th>
+                        <th class="px-2 py-3 text-center text-purple-600">อังกฤษ<br><span class="text-[10px] text-gray-400">${subScoreType}</span></th>
+                        <th class="px-4 py-3 text-center font-black text-gray-700 bg-gray-50">${scoreLabel}</th>
+                        <th class="px-4 py-3">โครงการที่เลือก</th>
+                        <th class="px-4 py-3 text-center">สถานะ</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50 text-sm">
                     ${renderList.length > 0 ? renderList.map(s => `
                     <tr class="hover:bg-gray-50 transition-colors ${s.status_type === 'pass' ? 'bg-green-50/30' : ''}">
-                        <td class="px-6 py-4 text-center font-bold text-gray-500">#${s.rank}</td>
-                        <td class="px-6 py-4">
+                        <td class="px-4 py-3 text-center font-bold text-gray-500">#${s.rank}</td>
+                        <td class="px-4 py-3">
                             <div class="font-bold text-gray-700">${s.exam_id}</div>
                             <div class="text-xs text-gray-500">${s.full_name}</div>
                         </td>
-                        <td class="px-6 py-4 text-center font-bold text-gray-700">${s.display_score.toFixed(2)}</td>
-                        <td class="px-6 py-4 text-xs text-gray-500 space-y-1">
+                        
+                        <td class="px-2 py-3 text-center font-medium text-gray-600">${s.show_sci.toFixed(2)}</td>
+                        <td class="px-2 py-3 text-center font-medium text-gray-600">${s.show_math.toFixed(2)}</td>
+                        <td class="px-2 py-3 text-center font-medium text-gray-600">${s.show_eng.toFixed(2)}</td>
+                        
+                        <td class="px-4 py-3 text-center font-bold text-gray-800 bg-gray-50/50">${s.display_score.toFixed(2)}</td>
+                        
+                        <td class="px-4 py-3 text-xs text-gray-500 space-y-1">
                             ${[s.choice_1, s.choice_2, (adminTab!=='m4'?s.choice_3:null)].filter(c=>c).map((c,i)=>`
                                 <div class="${(rankingTab !== 'all' && rankingTab !== 'filtered' && c.includes({sm:'S&M',gate:'GATE',eis:'EIS',sme:'SME'}[rankingTab])) ? 'font-bold text-teal-600 underline' : ''}">${i+1}. ${c}</div>
                             `).join('')}
                         </td>
-                        <td class="px-6 py-4 text-center">
+                        <td class="px-4 py-3 text-center">
                              ${s.status_type === 'pass'
                                 ? `<span class="px-3 py-1 rounded-full bg-green-100 text-green-700 font-bold text-xs shadow-sm">${s.status_text}</span>`
                                 : `<span class="px-3 py-1 rounded-full bg-orange-100 text-orange-700 font-bold text-xs shadow-sm">${s.status_text}</span>`
                             }
                         </td>
-                    </tr>`).join('') : `<tr><td colspan="5" class="text-center py-8 text-gray-400">ไม่พบข้อมูล</td></tr>`}
+                    </tr>`).join('') : `<tr><td colspan="8" class="text-center py-8 text-gray-400">ไม่พบข้อมูล</td></tr>`}
                 </tbody>
             </table>
         </div>
