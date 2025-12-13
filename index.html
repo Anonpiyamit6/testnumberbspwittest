@@ -858,14 +858,20 @@ function executeClearingHouse(students, quotaConfig) {
 // --- ฟังก์ชันย่อย 2: แสดงหน้าจัดลำดับ (Ranking View) ---
 function renderRankingView(allStudents) {
     let processingData = allStudents;
-    let isFilteredMode = false;
+    let isFilteredMode = false; // ตัด ป.4-5
+    let isPretestMode = false;  // เฉพาะ ป.4-5
 
-    // 1. ตรวจสอบโหมดกรองข้อมูล
+    // 1. ตรวจสอบโหมดการกรอง
     if (rankingTab === 'filtered') {
         if (adminTab === 'm1') {
             processingData = allStudents.filter(s => !['p4', 'p5'].includes(s.grade_level));
         }
         isFilteredMode = true;
+    } else if (rankingTab === 'pretest') {
+        if (adminTab === 'm1') {
+            processingData = allStudents.filter(s => ['p4', 'p5'].includes(s.grade_level));
+        }
+        isPretestMode = true;
     }
 
     const allocationResult = executeClearingHouse(processingData, quotas[adminTab]);
@@ -873,14 +879,18 @@ function renderRankingView(allStudents) {
     let renderList = [];
     let showQuota = 0;
     let scoreLabel = "คะแนนรวม";
-    let subScoreType = "(ดิบ)"; // ข้อความกำกับหัวตาราง
-    let title = isFilteredMode ? "สรุปผลคัดเลือก (ตัด Pre-test)" : "จัดลำดับคะแนน (Raw Data)";
+    let subScoreType = "(ดิบ)";
+    
+    // ตั้งชื่อหัวข้อ
+    let title = "จัดลำดับคะแนน (Raw Data)";
+    if (isFilteredMode) title = "สรุปผลคัดเลือก (ตัด Pre-test)";
+    if (isPretestMode) title = "สรุปคะแนน Pre-test (เฉพาะ ป.4-5)";
 
     // Helper: คำนวณคะแนนย่อย
     const getSubScore = (score, subject, program) => {
         const s = parseFloat(score) || 0;
-        // กรณีภาพรวม ให้คืนค่าคะแนนดิบเลย
-        if (program === 'all' || program === 'filtered') return s;
+        // กรณีภาพรวม หรือ Pre-test ให้คืนค่าคะแนนดิบ
+        if (program === 'all' || program === 'filtered' || program === 'pretest') return s;
 
         const p = program.toLowerCase();
         if (p.includes('s&m') || p.includes('sme')) {
@@ -899,8 +909,8 @@ function renderRankingView(allStudents) {
         return s;
     };
 
-    if (rankingTab === 'all' || rankingTab === 'filtered') {
-        // === ภาพรวม (แสดงคะแนนดิบ) ===
+    if (rankingTab === 'all' || rankingTab === 'filtered' || rankingTab === 'pretest') {
+        // === ภาพรวม / Pre-test (แสดงคะแนนดิบ) ===
         scoreLabel = "คะแนนรวม (110)";
         subScoreType = "(ดิบ)";
 
@@ -908,7 +918,6 @@ function renderRankingView(allStudents) {
             const result = allocationResult[s.__backendId];
             return {
                 ...s,
-                // คะแนนดิบ
                 show_sci: s.science_score,
                 show_math: s.math_score,
                 show_eng: s.english_score,
@@ -920,7 +929,6 @@ function renderRankingView(allStudents) {
             };
         });
         
-        // รันเลขลำดับ
         let currentRank = 1;
         for (let i = 0; i < renderList.length; i++) {
             if (i > 0) {
@@ -962,7 +970,6 @@ function renderRankingView(allStudents) {
             const officialResult = allocationResult[s.__backendId];
             const isReal = officialResult && officialResult.program === targetProgram;
             
-            // คำนวณคะแนนถ่วงน้ำหนัก
             const w_sci = getSubScore(s.science_score, 'sci', targetProgram);
             const w_math = getSubScore(s.math_score, 'math', targetProgram);
             const w_eng = getSubScore(s.english_score, 'eng', targetProgram);
@@ -974,7 +981,6 @@ function renderRankingView(allStudents) {
                 show_math: w_math,
                 show_eng: w_eng,
                 display_score: w_total,
-                
                 is_real: isReal,
                 official_result: officialResult,
                 choice_priority: getChoiceRank(s, targetProgram)
@@ -1020,15 +1026,36 @@ function renderRankingView(allStudents) {
         }
     }
 
+    // --- สร้างปุ่ม Tabs (เพิ่มปุ่ม Pre-test สำหรับ ม.1) ---
     let tabs = [];
-    if (isFilteredMode) {
-        tabs = [{ id: 'filtered', label: 'สรุปภาพรวม (ตัด ป.4-5)' }];
-        if(adminTab === 'm1') tabs.push({id:'sm', label:'S&M'}, {id:'gate', label:'GATE'}, {id:'eis', label:'EIS'});
-        else tabs.push({id:'sme', label:'SME'}, {id:'gate', label:'GATE'});
+    if (adminTab === 'm1') {
+        // ม.1
+        if (isFilteredMode) {
+            tabs = [
+                { id: 'filtered', label: 'สรุปภาพรวม (ตัด ป.4-5)' },
+                { id: 'pretest', label: 'เฉพาะ ป.4-5' }, // เพิ่มปุ่มนี้
+                { id: 'sm', label: 'S&M' }, { id: 'gate', label: 'GATE' }, { id: 'eis', label: 'EIS' }
+            ];
+        } else if (isPretestMode) {
+            tabs = [
+                { id: 'all', label: 'ทั้งหมด (Raw)' },
+                { id: 'filtered', label: 'ตัด ป.4-5' },
+                { id: 'pretest', label: 'เฉพาะ ป.4-5 (Active)' } // Active state
+            ];
+        } else {
+            tabs = [
+                { id: 'all', label: 'ทั้งหมด (Raw)' },
+                { id: 'filtered', label: 'ตัด ป.4-5' },
+                { id: 'pretest', label: 'เฉพาะ ป.4-5' }, // เพิ่มปุ่มนี้
+                { id: 'sm', label: 'S&M' }, { id: 'gate', label: 'GATE' }, { id: 'eis', label: 'EIS' }
+            ];
+        }
     } else {
-        tabs = [{ id: 'all', label: 'ทั้งหมด (Raw)' }];
-        if(adminTab === 'm1') tabs.push({id:'sm', label:'S&M'}, {id:'gate', label:'GATE'}, {id:'eis', label:'EIS'});
-        else tabs.push({id:'sme', label:'SME'}, {id:'gate', label:'GATE'});
+        // ม.4 (ไม่มี Pre-test)
+        tabs = [
+            { id: 'all', label: 'ทั้งหมด (Raw)' },
+            { id: 'sme', label: 'SME' }, { id: 'gate', label: 'GATE' }
+        ];
     }
 
     return `
@@ -1036,7 +1063,7 @@ function renderRankingView(allStudents) {
         <div>
             <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">${title} ${adminTab==='m1'?'ม.1':'ม.4'}</h1>
             <p class="text-sm text-gray-500">
-                ${rankingTab === 'all' || rankingTab === 'filtered' 
+                ${(rankingTab === 'all' || rankingTab === 'filtered' || rankingTab === 'pretest') 
                     ? 'แสดงคะแนนดิบรายวิชา (เต็ม 40, 30, 40 รวม 110)' 
                     : 'แสดงคะแนนสัดส่วนร้อยละตามโครงการ (Weighted Score รวม 100)'
                 }
@@ -1051,7 +1078,7 @@ function renderRankingView(allStudents) {
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                 Excel
             </button>
-            <button onclick="exportToWord()" class="flex items-center gap-2 px-3 py-3 bg-gradient-to-r from-lime-500 to-green-600 hover:from-lime-600 hover:to-green-700 text-white rounded-xl font-bold shadow-lg shadow-lime-200/50 transition-all active:scale-95 text-xs md:text-sm">
+            <button onclick="exportToWord()" class="flex items-center gap-2 px-3 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-200 transition-all active:scale-95 text-xs md:text-sm">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                 Word
             </button>
@@ -1060,8 +1087,8 @@ function renderRankingView(allStudents) {
 
     <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100">
         <div class="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-            <h3 class="font-bold text-gray-700">${rankingTab === 'all' || rankingTab === 'filtered' ? 'รายชื่อผู้ผ่านการคัดเลือก' : 'รายชื่อผู้ผ่านเกณฑ์และสำรอง'}</h3>
-            <div class="text-xs font-bold text-gray-400">จำนวน: ${renderList.length} คน ${rankingTab !== 'all' && rankingTab !== 'filtered' ? `/ รับ ${showQuota}` : ''}</div>
+            <h3 class="font-bold text-gray-700">${(rankingTab === 'all' || rankingTab === 'filtered' || rankingTab === 'pretest') ? 'รายชื่อผู้เข้าสอบ' : 'รายชื่อผู้ผ่านเกณฑ์และสำรอง'}</h3>
+            <div class="text-xs font-bold text-gray-400">จำนวน: ${renderList.length} คน ${rankingTab !== 'all' && rankingTab !== 'filtered' && rankingTab !== 'pretest' ? `/ รับ ${showQuota}` : ''}</div>
         </div>
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
@@ -1085,16 +1112,13 @@ function renderRankingView(allStudents) {
                             <div class="font-bold text-gray-700">${s.exam_id}</div>
                             <div class="text-xs text-gray-500">${s.full_name}</div>
                         </td>
-                        
                         <td class="px-2 py-3 text-center font-medium text-gray-600">${s.show_sci.toFixed(2)}</td>
                         <td class="px-2 py-3 text-center font-medium text-gray-600">${s.show_math.toFixed(2)}</td>
                         <td class="px-2 py-3 text-center font-medium text-gray-600">${s.show_eng.toFixed(2)}</td>
-                        
                         <td class="px-4 py-3 text-center font-bold text-gray-800 bg-gray-50/50">${s.display_score.toFixed(2)}</td>
-                        
                         <td class="px-4 py-3 text-xs text-gray-500 space-y-1">
                             ${[s.choice_1, s.choice_2, (adminTab!=='m4'?s.choice_3:null)].filter(c=>c).map((c,i)=>`
-                                <div class="${(rankingTab !== 'all' && rankingTab !== 'filtered' && c.includes({sm:'S&M',gate:'GATE',eis:'EIS',sme:'SME'}[rankingTab])) ? 'font-bold text-teal-600 underline' : ''}">${i+1}. ${c}</div>
+                                <div class="${(rankingTab !== 'all' && rankingTab !== 'filtered' && rankingTab !== 'pretest' && c.includes({sm:'S&M',gate:'GATE',eis:'EIS',sme:'SME'}[rankingTab])) ? 'font-bold text-teal-600 underline' : ''}">${i+1}. ${c}</div>
                             `).join('')}
                         </td>
                         <td class="px-4 py-3 text-center">
@@ -1117,18 +1141,26 @@ function exportToWord() {
     let activeData = adminTab === 'm1' ? m1 : m4;
 
     let isFilteredMode = false;
-    if (rankingTab === 'filtered' || (rankingTab !== 'all' && document.querySelector('button.bg-teal-500'))) {
+    let isPretestMode = false;
+
+    if (rankingTab === 'filtered') {
         if (adminTab === 'm1') activeData = activeData.filter(s => !['p4', 'p5'].includes(s.grade_level));
         isFilteredMode = true;
+    } else if (rankingTab === 'pretest') {
+        if (adminTab === 'm1') activeData = activeData.filter(s => ['p4', 'p5'].includes(s.grade_level));
+        isPretestMode = true;
     }
 
     const allocationResult = executeClearingHouse(activeData, quotas[adminTab]);
     let dataList = [];
     let titleProgram = "";
 
-    if (rankingTab === 'all' || rankingTab === 'filtered') {
+    if (rankingTab === 'all' || rankingTab === 'filtered' || rankingTab === 'pretest') {
         dataList = [...activeData].sort((a,b) => b.total_score - a.total_score).map((s, i) => ({...s, score_to_show: s.total_score}));
+        
         titleProgram = `สรุปภาพรวม ${isFilteredMode ? '(คัดกรอง)' : '(ทั้งหมด)'}`;
+        if(isPretestMode) titleProgram = "สรุปคะแนน Pre-test (เฉพาะ ป.4-5)";
+
     } else {
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
         const getChoiceRank = (student, prog) => { if (student.choice_1 === prog) return 1; if (student.choice_2 === prog) return 2; if (student.choice_3 === prog) return 3; return 99; };
@@ -1162,7 +1194,7 @@ function exportToWord() {
     for (let i = 0; i < dataList.length; i++) {
         if (i > 0) {
             const scoreSame = Math.abs(dataList[i].score_to_show - dataList[i-1].score_to_show) < 0.00001;
-            const statusSame = (rankingTab !== 'all' && rankingTab !== 'filtered') ? (dataList[i].is_real === dataList[i-1].is_real) : true;
+            const statusSame = (rankingTab !== 'all' && rankingTab !== 'filtered' && rankingTab !== 'pretest') ? (dataList[i].is_real === dataList[i-1].is_real) : true;
             if (scoreSame && statusSame) dataList[i].rank = dataList[i-1].rank;
             else { currentRank++; dataList[i].rank = currentRank; }
         } else { dataList[i].rank = 1; }
@@ -1203,7 +1235,7 @@ function exportToWord() {
                     <th width="8%">ลำดับ</th>
                     <th width="15%">เลขประจำตัวสอบ</th>
                     <th width="35%">ชื่อ-นามสกุล</th>
-                    <th width="27%">โรงเรียน</th>
+                    <th width="25%">โรงเรียน</th>
                     <th width="15%">หมายเหตุ</th>
                 </tr>
             </thead>
@@ -1831,21 +1863,30 @@ function exportRankingToExcel() {
     let activeData = adminTab === 'm1' ? m1 : m4;
 
     let isFilteredMode = false;
-    if (rankingTab === 'filtered' || (rankingTab !== 'all' && document.querySelector('button.bg-teal-500'))) {
+    let isPretestMode = false;
+
+    if (rankingTab === 'filtered') {
         if (adminTab === 'm1') activeData = activeData.filter(s => !['p4', 'p5'].includes(s.grade_level));
         isFilteredMode = true;
+    } else if (rankingTab === 'pretest') {
+        if (adminTab === 'm1') activeData = activeData.filter(s => ['p4', 'p5'].includes(s.grade_level));
+        isPretestMode = true;
     }
 
     const allocationResult = executeClearingHouse(activeData, quotas[adminTab]);
     let dataList = [];
     let fileName = "";
 
-    if (rankingTab === 'all' || rankingTab === 'filtered') {
+    if (rankingTab === 'all' || rankingTab === 'filtered' || rankingTab === 'pretest') {
         dataList = [...activeData].sort((a,b) => b.total_score - a.total_score).map((s, i) => ({
             ...s, score_to_show: s.total_score,
             status_text: allocationResult[s.__backendId] ? `ติด ${allocationResult[s.__backendId].program}` : 'ไม่ผ่านเกณฑ์'
         }));
-        fileName = `ประกาศผล_${adminTab}_${isFilteredMode ? 'สรุป' : 'RawData'}.xlsx`;
+        
+        let suffix = "RawData";
+        if(isFilteredMode) suffix = "สรุปคัดกรอง";
+        if(isPretestMode) suffix = "Pre-test(ป.4-5)";
+        fileName = `ประกาศผล_${adminTab}_${suffix}.xlsx`;
     } else {
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
         const getChoiceRank = (student, prog) => { if (student.choice_1 === prog) return 1; if (student.choice_2 === prog) return 2; if (student.choice_3 === prog) return 3; return 99; };
@@ -1882,13 +1923,12 @@ function exportRankingToExcel() {
     for (let i = 0; i < dataList.length; i++) {
         if (i > 0) {
             const scoreSame = Math.abs(dataList[i].score_to_show - dataList[i-1].score_to_show) < 0.00001;
-            const statusSame = (rankingTab !== 'all' && rankingTab !== 'filtered') ? (dataList[i].is_real === dataList[i-1].is_real) : true;
+            const statusSame = (rankingTab !== 'all' && rankingTab !== 'filtered' && rankingTab !== 'pretest') ? (dataList[i].is_real === dataList[i-1].is_real) : true;
             if (scoreSame && statusSame) dataList[i].rank = dataList[i-1].rank;
             else { currentRank++; dataList[i].rank = currentRank; }
         } else { dataList[i].rank = 1; }
     }
 
-    // --- Excel 5 คอลัมน์ (ใช้ full_name ตรงๆ) ---
     const excelRows = dataList.map(s => ({
         'ลำดับ': s.rank,
         'เลขประจำตัวสอบ': s.exam_id,
