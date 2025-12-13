@@ -1079,11 +1079,12 @@ function showEditForm(id) {
 function handleSingleSubmit(e) {
     e.preventDefault();
     
-    // ดึงปุ่มและเก็บข้อความเดิม
-    const btn = e.target.querySelector('button[type="submit"]');
-    const originalText = "บันทึก"; // บังคับข้อความตั้งต้น
+    // พยายามหาปุ่ม Submit (หาทั้งแบบ type="submit" และปุ่มทั่วไปในฟอร์ม)
+    let btn = e.target.querySelector('button[type="submit"]');
+    if (!btn) btn = e.target.querySelector('button'); // กรณีหาไม่เจอ ให้เอาปุ่มแรกที่เจอ
+
+    const originalText = btn ? btn.innerText : "บันทึก"; // เก็บข้อความเดิม
     
-    // ข้อมูล Form
     const id = document.getElementById('student-backend-id').value;
     const examId = document.getElementById('form-exam-id').value.trim();
     const nationalId = document.getElementById('form-national-id').value.trim();
@@ -1097,7 +1098,13 @@ function handleSingleSubmit(e) {
         const errorDetails = [];
         if (duplicateStudent.exam_id === examId) errorDetails.push(`<b>รหัสสอบซ้ำกับ:</b> ${duplicateStudent.full_name}`);
         if (duplicateStudent.national_id === nationalId) errorDetails.push(`<b>เลขบัตรฯ ซ้ำกับ:</b> ${duplicateStudent.full_name}`);
-        showDuplicateAlert(errorDetails);
+        
+        // ถ้ามีฟังก์ชัน showDuplicateAlert ให้ใช้ ถ้าไม่มีให้ใช้ alert ธรรมดา
+        if (typeof showDuplicateAlert === 'function') {
+            showDuplicateAlert(errorDetails);
+        } else {
+            alert('ข้อมูลซ้ำ!\n' + errorDetails.join('\n').replace(/<b>|<\/b>/g, ''));
+        }
         return; 
     }
 
@@ -1111,8 +1118,6 @@ function handleSingleSubmit(e) {
         choice_1: document.getElementById('form-choice-1').value,
         choice_2: document.getElementById('form-choice-2').value,
         choice_3: document.getElementById('form-choice-3').value,
-        // ถ้าเป็นการแก้ไข (มี id) ไม่ต้องส่งคะแนนไปทับ (ใช้ undefined)
-        // แต่ถ้าสร้างใหม่ (ไม่มี id) ให้เริ่มที่ 0
         science_score: id ? undefined : 0,
         math_score: id ? undefined : 0,
         english_score: id ? undefined : 0,
@@ -1120,13 +1125,14 @@ function handleSingleSubmit(e) {
         practical_score: id ? undefined : 0
     };
 
-    // ลบ field ที่เป็น undefined ออก
     Object.keys(formData).forEach(key => formData[key] === undefined && delete formData[key]);
 
-    // --- ล็อกปุ่ม ---
-    btn.innerText = 'กำลังบันทึก...';
-    btn.disabled = true;
-    btn.classList.add('opacity-50', 'cursor-not-allowed'); // เพิ่ม Visual Feedback
+    // --- ล็อกปุ่ม (ถ้ามีปุ่ม) ---
+    if (btn) {
+        btn.innerText = 'กำลังบันทึก...';
+        btn.disabled = true;
+        btn.classList.add('opacity-50', 'cursor-not-allowed');
+    }
 
     // --- ส่งข้อมูล ---
     const action = id 
@@ -1137,8 +1143,10 @@ function handleSingleSubmit(e) {
         .then(res => {
             if (res.isOk) {
                 closeModal();
-                showAlert('สำเร็จ', 'บันทึกข้อมูลเรียบร้อย');
-                // โหลดข้อมูลใหม่เงียบๆ
+                // เช็คว่ามีฟังก์ชัน showAlert หรือไม่
+                if (typeof showAlert === 'function') showAlert('สำเร็จ', 'บันทึกข้อมูลเรียบร้อย');
+                else alert('บันทึกข้อมูลเรียบร้อย');
+                
                 window.dataSdk.refresh().then(() => renderAdminDashboard());
             } else {
                 throw new Error(res.error.message || 'Unknown error');
@@ -1149,11 +1157,12 @@ function handleSingleSubmit(e) {
             alert('เกิดข้อผิดพลาด: ' + err.message);
         })
         .finally(() => {
-            // *** สำคัญ: ทำงานเสมอ ไม่ว่าจะ Error หรือไม่ ***
-            // ปลดล็อกปุ่มคืนสู่สภาพเดิม
-            btn.innerText = originalText;
-            btn.disabled = false;
-            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            // *** คืนค่าปุ่มเสมอ (ถ้ามีปุ่ม) ***
+            if (btn) {
+                btn.innerText = originalText;
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
         });
 }
 function addMultipleRow() { const tr = document.createElement('tr'); tr.className = 'bg-white border-b hover:bg-gray-50'; tr.innerHTML = `<td class="p-2"><input type="text" class="w-full border rounded px-2 py-1 multi-national-id text-xs" placeholder="บัตรฯ"></td><td class="p-2"><input type="text" class="w-full border rounded px-2 py-1 multi-exam-id text-xs" placeholder="รหัส"></td><td class="p-2"><input type="text" class="w-full border rounded px-2 py-1 multi-name text-xs" placeholder="ชื่อ"></td><td class="p-2"><select class="w-full border rounded px-2 py-1 multi-grade text-xs"><option value="p6">ป.6</option><option value="p5">ป.5</option><option value="p4">ป.4</option><option value="m3">ม.3</option></select></td><td class="p-2"><input type="text" class="w-full border rounded px-2 py-1 multi-school text-xs" placeholder="รร."></td><td class="p-2 text-center"><button type="button" onclick="this.closest('tr').remove()" class="text-red-500 font-bold">x</button></td>`; document.getElementById('multiple-tbody').appendChild(tr); }
@@ -1718,52 +1727,49 @@ function showDuplicateAlert(details) {
     document.body.appendChild(div.firstElementChild);
 }
     function editStudent(id) {
-    // 1. หาข้อมูลนักเรียน
     const s = studentsData.find(x => x.__backendId === id);
     if(!s) return;
 
-    // 2. รีเซ็ตฟอร์ม
-    document.getElementById('student-form').reset();
-    switchAddTab('single');
+    // Reset Form
+    const form = document.getElementById('student-form');
+    if(form) form.reset();
     
-    // 3. เติมข้อมูลลงฟอร์ม
-    document.getElementById('student-backend-id').value = s.__backendId;
-    document.getElementById('form-exam-id').value = s.exam_id;
-    document.getElementById('form-national-id').value = s.national_id || '';
-    document.getElementById('form-grade').value = s.grade_level;
-    document.getElementById('form-name').value = s.full_name;
-    document.getElementById('form-school').value = s.previous_school || '';
+    if(typeof switchAddTab === 'function') switchAddTab('single');
     
-    // เลือกโครงการ
-    document.getElementById('form-choice-1').value = s.choice_1 || '';
-    document.getElementById('form-choice-2').value = s.choice_2 || '';
-    document.getElementById('form-choice-3').value = s.choice_3 || '';
+    // เติมข้อมูล (ใช้ getElementById แบบปกติ แต่ถ้าช่องไหนไม่มีใน HTML ก็จะไม่ Error)
+    const setVal = (eid, val) => { const e = document.getElementById(eid); if(e) e.value = val; };
+    
+    setVal('student-backend-id', s.__backendId);
+    setVal('form-exam-id', s.exam_id);
+    setVal('form-national-id', s.national_id || '');
+    setVal('form-grade', s.grade_level);
+    setVal('form-name', s.full_name);
+    setVal('form-school', s.previous_school || '');
+    setVal('form-choice-1', s.choice_1 || '');
+    setVal('form-choice-2', s.choice_2 || '');
+    setVal('form-choice-3', s.choice_3 || '');
+    setVal('score-science', s.science_score || 0);
+    setVal('score-math', s.math_score || 0);
+    setVal('score-english', s.english_score || 0);
 
-    // เติมคะแนน (ถ้ามี)
-    document.getElementById('score-science').value = s.science_score || 0;
-    document.getElementById('score-math').value = s.math_score || 0;
-    document.getElementById('score-english').value = s.english_score || 0;
-
-    // ========================================================
-    // *** จุดสำคัญที่แก้ไข: บังคับปลดล็อกปุ่มทุกครั้งที่เปิด ***
-    // ========================================================
+    // *** จุดที่แก้ไข: เช็คก่อนว่าปุ่มมีจริงไหม ***
     const submitBtn = document.querySelector('#student-form button[type="submit"]');
     if(submitBtn) {
-        submitBtn.innerText = "บันทึก"; // เปลี่ยนข้อความกลับเป็นปกติ
-        submitBtn.disabled = false;      // ปลดล็อกให้กดได้
-        submitBtn.classList.remove('opacity-50', 'cursor-not-allowed'); // เอาสีจางออก
+        submitBtn.innerText = "บันทึก";
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
     }
 
-    // 4. เปลี่ยนหัวข้อ Modal และแสดงผล
+    // *** จุดที่แก้ไข: เช็คหัวข้อ Modal ***
     const titleEl = document.getElementById('modal-title');
-    if(titleEl) titleEl.innerText = "แก้ไขข้อมูลผู้สมัคร";
+    if(titleEl) titleEl.innerText = "แก้ไขข้อมูลผู้สมัคร"; // ใช้ innerText แทน textContent เพื่อความชัวร์
     
-    // เปิด Modal
     const modal = document.getElementById('student-modal');
-    modal.classList.remove('hidden-force');
-    modal.classList.add('flex');
+    if(modal) {
+        modal.classList.remove('hidden-force');
+        modal.classList.add('flex');
+    }
 }
-
 // --- ฟังก์ชันเปิดหน้าเพิ่มผู้เข้าสอบ (วางทับของเดิม เพื่อแก้ปุ่มค้าง) ---
 function showAddStudentForm() {
     document.getElementById('student-form').reset();
