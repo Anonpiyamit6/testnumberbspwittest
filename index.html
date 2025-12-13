@@ -614,19 +614,21 @@ function renderAdminDashboard() {
     const m4 = studentsData.filter(s => ['m3','m4'].includes(s.grade_level));
     let activeData = adminTab === 'm1' ? m1 : m4;
 
-    // สถิติ
+    // --- คำนวณสถิติ ---
     const totalStudents = activeData.length;
     const allScores = activeData.map(s => (parseFloat(s.total_score)||0) + (parseFloat(s.practical_score)||0));
     const validScores = allScores.filter(score => score > 0);
     const maxScore = validScores.length > 0 ? Math.max(...validScores) : 0;
     const minScore = validScores.length > 0 ? Math.min(...validScores) : 0;
 
+    // Logic การกรองสำหรับหน้า Manage
     let displayData = activeData;
     if(adminViewMode === 'manage' && searchQuery) {
         displayData = displayData.filter(s => s.full_name.includes(searchQuery) || String(s.exam_id).includes(searchQuery) || String(s.national_id).includes(searchQuery));
     }
     checkedIds.clear();
 
+    // 2. Render HTML
     document.getElementById('app').innerHTML = `
     <div class="h-screen flex bg-[#f8fafc] font-sarabun overflow-hidden relative">
         
@@ -651,12 +653,8 @@ function renderAdminDashboard() {
                 
                 <button onclick="adminViewMode='manage';renderAdminDashboard();toggleSidebar();" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${adminViewMode==='manage' ? 'bg-blue-50 text-blue-700 font-bold border-l-4 border-blue-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>รายชื่อผู้สมัคร</button>
                 
-                <button onclick="adminViewMode='ranking';rankingTab='all';renderAdminDashboard();toggleSidebar();" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${adminViewMode==='ranking' && rankingTab!=='filtered' ? 'bg-amber-50 text-amber-700 font-bold border-l-4 border-amber-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>จัดลำดับ (Raw Data)</button>
+                <button onclick="adminViewMode='ranking';rankingTab='all';renderAdminDashboard();toggleSidebar();" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${adminViewMode==='ranking' ? 'bg-amber-50 text-amber-700 font-bold border-l-4 border-amber-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>ประกาศผล/จัดลำดับ</button>
 
-                <button onclick="adminViewMode='ranking';rankingTab='filtered';renderAdminDashboard();toggleSidebar();" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${rankingTab==='filtered' ? 'bg-teal-50 text-teal-700 font-bold border-l-4 border-teal-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    สรุปผล (ตัด ป.4-5)
-                </button>
                 <button onclick="adminViewMode='interview';rankingTab='all';renderAdminDashboard();toggleSidebar();" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${adminViewMode==='interview' ? 'bg-purple-50 text-purple-700 font-bold border-l-4 border-purple-500 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium'}"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>บันทึกคะแนนปฏิบัติ</button>
             </div>
             <div class="p-4 border-t border-gray-100 shrink-0">
