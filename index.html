@@ -277,7 +277,7 @@ return { isOk: false, error: { message: res.message } };
                         <div class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
                             <div><label class="text-xs text-gray-500 font-semibold">วิทยาศาสตร์ (40)</label><input type="number" step="0.01" id="score-science" class="w-full px-3 py-2 rounded-lg border-gray-200 text-center font-bold text-lime-600 input-field"></div>
                             <div><label class="text-xs text-gray-500 font-semibold">คณิตศาสตร์ (30)</label><input type="number" step="0.01" id="score-math" class="w-full px-3 py-2 rounded-lg border-gray-200 text-center font-bold text-lime-600 input-field"></div>
-                            <div><label class="text-xs text-gray-500 font-semibold">ภาษาอังกฤษ (30)</label><input type="number" step="0.01" id="score-english" class="w-full px-3 py-2 rounded-lg border-gray-200 text-center font-bold text-lime-600 input-field"></div>
+                            <div><label class="text-xs text-gray-500 font-semibold">ภาษาอังกฤษ (40)</label><input type="number" step="0.01" id="score-english" class="w-full px-3 py-2 rounded-lg border-gray-200 text-center font-bold text-lime-600 input-field"></div>
                         </div>
                     </div>
 
@@ -943,7 +943,7 @@ function renderStudentView() {
     if(!currentUser) return;
 
     // --- 1. คำนวณคะแนน (Logic เดิม) ---
-    const maxSci = 40; const maxMath = 30; const maxEng = 30; const maxTotal = 100;
+    const maxSci = 40; const maxMath = 30; const maxEng = 40; const maxTotal = 110;
 
     const sSci = parseFloat(currentUser.science_score)||0;
     const sMath = parseFloat(currentUser.math_score)||0;
