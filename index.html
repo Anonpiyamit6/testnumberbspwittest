@@ -864,7 +864,7 @@ function executeClearingHouse(students, quotaConfig) {
 // --- ฟังก์ชันย่อย 2: แสดงหน้าจัดลำดับ (Ranking View) ---
 // --- ฟังก์ชันย่อย 2: แสดงหน้าจัดลำดับ (Ranking View) ---
 function renderRankingView(allStudents) {
-    // เรียกใช้ฟังก์ชันประมวลผล
+    // ประมวลผล Clearing House
     const allocationResult = executeClearingHouse(allStudents, quotas[adminTab]);
     
     let renderList = [];
@@ -872,7 +872,7 @@ function renderRankingView(allStudents) {
     let scoreLabel = "คะแนนร้อยละ";
 
     if (rankingTab === 'all') {
-        // === ภาพรวม: เรียงตามคะแนนรวมดิบ (เพื่อให้เห็นภาพรวม) ===
+        // === ภาพรวม ===
         renderList = [...allStudents].sort((a,b) => b.total_score - a.total_score).map((s, i) => {
             const result = allocationResult[s.__backendId];
             return {
@@ -884,41 +884,51 @@ function renderRankingView(allStudents) {
         });
         scoreLabel = "คะแนนรวม (110)";
         
-        // รันเลขลำดับ (แบบข้ามเลขเมื่อคะแนนเท่ากัน เช่น 1, 2, 2, 4)
+        // --- แก้ไขจุดที่ 1: รันลำดับแบบต่อเนื่อง (9, 9, 10...) ---
+        let currentRank = 1;
         for (let i = 0; i < renderList.length; i++) {
-            if (i > 0 && Math.abs(renderList[i].display_score - renderList[i-1].display_score) < 0.001) {
-                renderList[i].rank = renderList[i-1].rank;
+            if (i > 0) {
+                // เช็คว่าคะแนนเท่าคนก่อนหน้าไหม
+                if (Math.abs(renderList[i].display_score - renderList[i-1].display_score) < 0.001) {
+                    renderList[i].rank = renderList[i-1].rank; // คะแนนเท่า ลำดับเดิม
+                } else {
+                    currentRank++; // คะแนนเปลี่ยน บวกเพิ่ม 1 (ไม่กระโดด)
+                    renderList[i].rank = currentRank;
+                }
             } else {
-                renderList[i].rank = i + 1;
+                renderList[i].rank = 1; // คนแรกที่ 1 เสมอ
             }
         }
 
     } else {
-        // === แยกโครงการ: แสดงเฉพาะตัวจริง ===
+        // === แยกโครงการ ===
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
         showQuota = (quotas[adminTab] && quotas[adminTab][targetProgram]) || 0;
 
-        // ดึงเฉพาะคนที่ติดโครงการนี้
         renderList = allStudents.filter(s => {
             const result = allocationResult[s.__backendId];
             return result && result.program === targetProgram;
         });
 
-        // ดึงคะแนนร้อยละมาแสดง
         renderList = renderList.map(s => ({
             ...s,
             display_score: allocationResult[s.__backendId].score
         }));
 
-        // เรียงลำดับตามคะแนนร้อยละ
         renderList.sort((a, b) => b.display_score - a.display_score);
 
-        // รันเลขลำดับ (คะแนนเท่ากัน ลำดับเท่ากัน)
+        // --- แก้ไขจุดที่ 2: รันลำดับแบบต่อเนื่อง (9, 9, 10...) ---
+        let currentRank = 1;
         for (let i = 0; i < renderList.length; i++) {
-            if (i > 0 && Math.abs(renderList[i].display_score - renderList[i-1].display_score) < 0.00001) {
-                renderList[i].rank = renderList[i-1].rank;
+            if (i > 0) {
+                if (Math.abs(renderList[i].display_score - renderList[i-1].display_score) < 0.00001) {
+                    renderList[i].rank = renderList[i-1].rank;
+                } else {
+                    currentRank++;
+                    renderList[i].rank = currentRank;
+                }
             } else {
-                renderList[i].rank = i + 1;
+                renderList[i].rank = 1;
             }
             renderList[i].status = 'pass';
         }
@@ -1674,7 +1684,7 @@ function exportRankingToExcel() {
     if (rankingTab === 'all') {
         dataList = [...activeData].sort((a,b) => b.total_score - a.total_score).map((s, i) => ({
             ...s,
-            // rank: จะถูกคำนวณด้านล่าง
+            // rank จะถูกคำนวณใหม่
             score_to_show: s.total_score,
             status_text: allocationResult[s.__backendId] ? `ติด ${allocationResult[s.__backendId].program}` : 'ไม่ผ่านเกณฑ์'
         }));
@@ -1700,12 +1710,18 @@ function exportRankingToExcel() {
 
     if (dataList.length === 0) return showAlert('แจ้งเตือน', 'ไม่มีข้อมูล');
 
-    // รันเลขลำดับ (คะแนนเท่ากัน ลำดับเท่ากัน)
+    // --- แก้ไขจุดที่ 3: รันลำดับแบบต่อเนื่องใน Excel (9, 9, 10...) ---
+    let currentRank = 1;
     for (let i = 0; i < dataList.length; i++) {
-        if (i > 0 && Math.abs(dataList[i].score_to_show - dataList[i-1].score_to_show) < 0.001) {
-            dataList[i].rank = dataList[i-1].rank;
+        if (i > 0) {
+            if (Math.abs(dataList[i].score_to_show - dataList[i-1].score_to_show) < 0.001) {
+                dataList[i].rank = dataList[i-1].rank;
+            } else {
+                currentRank++; // บวกเพิ่ม 1 โดยไม่สน index
+                dataList[i].rank = currentRank;
+            }
         } else {
-            dataList[i].rank = i + 1;
+            dataList[i].rank = 1;
         }
         
         if (rankingTab !== 'all') dataList[i].status_text = 'ตัวจริง';
