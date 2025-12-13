@@ -443,64 +443,69 @@ function getWeightedScore(student, program) {
 // --- 3. ฟังก์ชันประมวลผล Clearing House (หัวใจสำคัญ) ---
 function executeClearingHouse(students, quotaConfig) {
     let results = {}; 
-    let seats = { ...quotaConfig }; // โคลนจำนวนที่นั่งมา (80, 60, 60)
+    let seats = { ...quotaConfig }; // โควตาตั้งต้น
     let remainingStudents = [...students]; // รายชื่อคนยังไม่ได้ที่เรียน
 
-    // วนลูป 3 รอบ (พิจารณาคนที่เลือกอันดับ 1 ก่อน -> 2 -> 3)
+    // วนลูป 3 รอบ (พิจารณาคนที่เลือกอันดับ 1 -> 2 -> 3)
     for (let choiceRound = 1; choiceRound <= 3; choiceRound++) {
+        
         const programs = Object.keys(seats); 
 
+        // วนลูปทีละโครงการ (S&M, GATE, EIS...)
         programs.forEach(program => {
-            // ถ้าที่นั่งเต็มแล้ว และไม่มีการรับเกินจากรอบก่อน -> ข้าม (แต่ถ้ารับเกินมาแล้ว seats จะติดลบ ก็ข้ามเหมือนกัน)
+            
+            // ถ้าที่นั่งเต็มแล้ว (<=0) ข้ามไปเลย (ไม่รับเพิ่ม)
             if (seats[program] <= 0) return; 
 
-            // A. หาคนสมัครโครงการนี้ ในลำดับที่กำลังพิจารณา
+            // A. คัดกรองคนสมัคร:
+            // "ใครบ้างที่เลือกโครงการนี้ ในอันดับที่กำลังพิจารณา (1, 2 หรือ 3) และยังไม่มีที่เรียน"
             let candidates = remainingStudents.filter(s => {
                 const choice = choiceRound === 1 ? s.choice_1 : (choiceRound === 2 ? s.choice_2 : s.choice_3);
-                return choice === program;
+                return choice === program; // ต้องเลือกโครงการนี้เท่านั้น
             });
 
-            // B. คำนวณคะแนนร้อยละ ของโครงการนั้น
+            // =========================================================
+            // B. [จุดสำคัญ] คำนวณคะแนนใหม่ ตามเกณฑ์ของโครงการนั้นๆ !!!
+            // =========================================================
+            // ไม่ว่าจะมาจากอันดับไหน ระบบจะคำนวณคะแนนใหม่โดยใช้สูตรของโครงการนั้นเสมอ
+            // เช่น ถ้ารอบนี้พิจารณา GATE ระบบจะใช้สูตร GATE (วิทย์x0.875...) มาคิดให้
             candidates = candidates.map(s => ({
                 ...s,
-                temp_score: getWeightedScore(s, program)
+                temp_score: getWeightedScore(s, program) // <--- ส่งชื่อโครงการเข้าไป เพื่อเลือกสูตรคำนวณ
             }));
 
-            // C. เรียงคะแนนมาก -> น้อย
+            // C. เรียงคะแนนมาก -> น้อย (ตามคะแนนที่คำนวณใหม่แล้ว)
             candidates.sort((a, b) => b.temp_score - a.temp_score);
 
-            // D. ตัดโควตา (แก้ไขให้รับครบ และรับคนคะแนนเท่ากัน)
+            // D. ตัดโควตา (Logic: รับครบจำนวน + รับคนคะแนนเท่ากัน)
             let winners = [];
             
             if (candidates.length === 0) {
                 winners = [];
             } else if (candidates.length <= seats[program]) {
-                // ถ้าคนสมัคร น้อยกว่า หรือ เท่ากับ ที่ว่าง -> รับหมดทุกคน
+                // ถ้าคนสมัครน้อยกว่าที่ว่าง -> รับหมด
                 winners = candidates;
             } else {
-                // ถ้าคนสมัคร เกินโควตา -> ต้องตัดตัว
-                // ดูคะแนนของ "คนสุดท้ายตามโควตา"
+                // ถ้าคนสมัครเยอะกว่า -> ตัดตัวที่ลำดับโควตา
                 const cutOffIndex = seats[program] - 1; 
                 const cutOffScore = candidates[cutOffIndex].temp_score;
 
-                // รับทุกคนที่คะแนน มากกว่า หรือ เท่ากับ คะแนนจุดตัด
-                // (ทำให้ยอดรับจริงอาจเกิน 80 ได้ ถ้าคนที่ 80 และ 81 คะแนนเท่ากัน)
+                // รับทุกคนที่คะแนน >= คะแนนจุดตัด
                 winners = candidates.filter(c => c.temp_score >= cutOffScore);
             }
 
-            // E. บันทึกผลผู้ชนะ
+            // E. บันทึกคนติด
             winners.forEach(w => {
                 results[w.__backendId] = {
                     program: program,
-                    score: w.temp_score
+                    score: w.temp_score // บันทึกคะแนนที่ใช้ติด (เป็นคะแนน Weight ของโครงการนั้น)
                 };
             });
 
-            // ลดจำนวนที่นั่งลง
-            // (ถ้า winners.length มากกว่า seats เพราะมีคะแนนเท่ากัน -> seats จะติดลบ ซึ่งถูกต้องแล้ว เพื่อไม่ให้รับเพิ่มในรอบถัดไป)
+            // ลดจำนวนที่นั่ง
             seats[program] -= winners.length;
 
-            // ตัดรายชื่อผู้ชนะออกจากกองกลาง (จะได้ไม่ไปแย่งที่ในอันดับถัดไป)
+            // ตัดชื่อคนติดออกจากกองกลาง (คนนี้จะไม่ถูกเอาไปคิดในอันดับถัดไป หรือโครงการอื่นในรอบเดียวกัน)
             const winnerIds = new Set(winners.map(w => w.__backendId));
             remainingStudents = remainingStudents.filter(s => !winnerIds.has(s.__backendId));
         });
