@@ -1079,62 +1079,31 @@ function showEditForm(id) {
 function handleSingleSubmit(e) {
     e.preventDefault();
     
-    // พยายามหาปุ่ม Submit (หาทั้งแบบ type="submit" และปุ่มทั่วไปในฟอร์ม)
+    // 1. หาปุ่มแบบปลอดภัย (ถ้าไม่เจอให้ข้าม)
     let btn = e.target.querySelector('button[type="submit"]');
-    if (!btn) btn = e.target.querySelector('button'); // กรณีหาไม่เจอ ให้เอาปุ่มแรกที่เจอ
-
-    const originalText = btn ? btn.innerText : "บันทึก"; // เก็บข้อความเดิม
+    // ถ้าหาในฟอร์มไม่เจอ ให้ลองหาโดยตรงจาก ID
+    if (!btn) btn = document.querySelector('#student-form button.btn-primary');
     
     const id = document.getElementById('student-backend-id').value;
-    const examId = document.getElementById('form-exam-id').value.trim();
-    const nationalId = document.getElementById('form-national-id').value.trim();
-
-    // 1. เช็คข้อมูลซ้ำ
-    const duplicateStudent = studentsData.find(s => 
-        (s.exam_id === examId || s.national_id === nationalId) && s.__backendId !== id
-    );
-
-    if (duplicateStudent) {
-        const errorDetails = [];
-        if (duplicateStudent.exam_id === examId) errorDetails.push(`<b>รหัสสอบซ้ำกับ:</b> ${duplicateStudent.full_name}`);
-        if (duplicateStudent.national_id === nationalId) errorDetails.push(`<b>เลขบัตรฯ ซ้ำกับ:</b> ${duplicateStudent.full_name}`);
-        
-        // ถ้ามีฟังก์ชัน showDuplicateAlert ให้ใช้ ถ้าไม่มีให้ใช้ alert ธรรมดา
-        if (typeof showDuplicateAlert === 'function') {
-            showDuplicateAlert(errorDetails);
-        } else {
-            alert('ข้อมูลซ้ำ!\n' + errorDetails.join('\n').replace(/<b>|<\/b>/g, ''));
-        }
-        return; 
-    }
-
-    // 2. เตรียมข้อมูล
+    
+    // 2. เก็บข้อมูล
     const formData = {
-        exam_id: examId,
-        national_id: nationalId,
+        exam_id: document.getElementById('form-exam-id').value.trim(),
+        national_id: document.getElementById('form-national-id').value.trim(),
         full_name: document.getElementById('form-name').value.trim(),
         grade_level: document.getElementById('form-grade').value,
         previous_school: document.getElementById('form-school').value.trim(),
         choice_1: document.getElementById('form-choice-1').value,
         choice_2: document.getElementById('form-choice-2').value,
-        choice_3: document.getElementById('form-choice-3').value,
-        science_score: id ? undefined : 0,
-        math_score: id ? undefined : 0,
-        english_score: id ? undefined : 0,
-        total_score: id ? undefined : 0,
-        practical_score: id ? undefined : 0
+        choice_3: document.getElementById('form-choice-3').value
     };
 
-    Object.keys(formData).forEach(key => formData[key] === undefined && delete formData[key]);
-
-    // --- ล็อกปุ่ม (ถ้ามีปุ่ม) ---
+    // 3. สั่งล็อกปุ่ม (ใส่ if กัน Error)
     if (btn) {
         btn.innerText = 'กำลังบันทึก...';
         btn.disabled = true;
-        btn.classList.add('opacity-50', 'cursor-not-allowed');
     }
 
-    // --- ส่งข้อมูล ---
     const action = id 
         ? window.dataSdk.update({ ...formData, __backendId: id }) 
         : window.dataSdk.create(formData);
@@ -1142,25 +1111,29 @@ function handleSingleSubmit(e) {
     action
         .then(res => {
             if (res.isOk) {
-                closeModal();
-                // เช็คว่ามีฟังก์ชัน showAlert หรือไม่
-                if (typeof showAlert === 'function') showAlert('สำเร็จ', 'บันทึกข้อมูลเรียบร้อย');
-                else alert('บันทึกข้อมูลเรียบร้อย');
+                // ปิด Modal ก่อน
+                const modal = document.getElementById('student-modal');
+                if(modal) modal.classList.add('hidden-force');
                 
-                window.dataSdk.refresh().then(() => renderAdminDashboard());
+                alert('บันทึกข้อมูลเรียบร้อย');
+                
+                // รีโหลดหน้าจอ
+                window.dataSdk.refresh().then(() => {
+                    if(typeof renderAdminDashboard === 'function') renderAdminDashboard();
+                });
             } else {
-                throw new Error(res.error.message || 'Unknown error');
+                alert('เกิดข้อผิดพลาด: ' + res.error.message);
             }
         })
         .catch(err => {
             console.error(err);
-            alert('เกิดข้อผิดพลาด: ' + err.message);
+            alert('Error: ' + err.message);
         })
         .finally(() => {
-            // *** คืนค่าปุ่มเสมอ (ถ้ามีปุ่ม) ***
+            // *** 4. บังคับปลดล็อกปุ่มเสมอ ไม่ว่าจะเกิดอะไรขึ้น ***
             if (btn) {
-                btn.innerText = originalText;
-                btn.disabled = false;
+                btn.innerText = 'บันทึก'; // คืนค่าข้อความเดิม
+                btn.disabled = false;      // ปลดล็อก
                 btn.classList.remove('opacity-50', 'cursor-not-allowed');
             }
         });
@@ -1364,7 +1337,25 @@ function confirmExcelImport(type) {
         });
     }
 }
-function deleteStudent(id) { showConfirm('ยืนยันลบ', 'ลบข้อมูลนี้หรือไม่?', () => { showLoading('กำลังลบ...'); window.dataSdk.delete({__backendId: id}).then(res => { setTimeout(() => { hideLoading(); if(res.isOk) showAlert('สำเร็จ', 'ลบเรียบร้อย'); else showAlert('ผิดพลาด', res.error.message); }, 500); }); }); }
+function deleteStudent(id) {
+    if(confirm('ยืนยันที่จะลบข้อมูลนี้? (ไม่สามารถกู้คืนได้)')) {
+        // หาปุ่มลบเพื่อเปลี่ยนสถานะ (Visual feedback)
+        const row = document.querySelector(`tr[data-id="${id}"]`);
+        if(row) row.style.opacity = '0.5';
+
+        window.dataSdk.delete(id).then(res => {
+            if(res.isOk) {
+                // ลบออกจากตัวแปร memory ด้วย
+                studentsData = studentsData.filter(s => s.__backendId !== id);
+                // รีเรนเดอร์หน้าจอทันที
+                if(typeof renderAdminDashboard === 'function') renderAdminDashboard();
+            } else {
+                alert('ลบไม่สำเร็จ: ' + res.error.message);
+                if(row) row.style.opacity = '1'; // คืนค่าถ้าลบพลาด
+            }
+        });
+    }
+}
 // --- ฟังก์ชันเปิด Modal ให้คะแนนรายบุคคล ---
 function showInterviewForm(id, maxScore, programName) {
     const s = studentsData.find(x => x.__backendId === id);
@@ -1734,38 +1725,43 @@ function showDuplicateAlert(details) {
     const form = document.getElementById('student-form');
     if(form) form.reset();
     
+    // เปลี่ยน Tab
     if(typeof switchAddTab === 'function') switchAddTab('single');
-    
-    // เติมข้อมูล (ใช้ getElementById แบบปกติ แต่ถ้าช่องไหนไม่มีใน HTML ก็จะไม่ Error)
-    const setVal = (eid, val) => { const e = document.getElementById(eid); if(e) e.value = val; };
-    
-    setVal('student-backend-id', s.__backendId);
-    setVal('form-exam-id', s.exam_id);
-    setVal('form-national-id', s.national_id || '');
-    setVal('form-grade', s.grade_level);
-    setVal('form-name', s.full_name);
-    setVal('form-school', s.previous_school || '');
-    setVal('form-choice-1', s.choice_1 || '');
-    setVal('form-choice-2', s.choice_2 || '');
-    setVal('form-choice-3', s.choice_3 || '');
-    setVal('score-science', s.science_score || 0);
-    setVal('score-math', s.math_score || 0);
-    setVal('score-english', s.english_score || 0);
 
-    // *** จุดที่แก้ไข: เช็คก่อนว่าปุ่มมีจริงไหม ***
+    // เติมข้อมูล (ใช้ฟังก์ชันย่อยเพื่อความปลอดภัย)
+    const safeSet = (eid, val) => { 
+        const el = document.getElementById(eid); 
+        if(el) el.value = val; 
+    };
+
+    safeSet('student-backend-id', s.__backendId);
+    safeSet('form-exam-id', s.exam_id);
+    safeSet('form-national-id', s.national_id || '');
+    safeSet('form-grade', s.grade_level);
+    safeSet('form-name', s.full_name);
+    safeSet('form-school', s.previous_school || '');
+    safeSet('form-choice-1', s.choice_1 || '');
+    safeSet('form-choice-2', s.choice_2 || '');
+    safeSet('form-choice-3', s.choice_3 || '');
+    safeSet('score-science', s.science_score || 0);
+    safeSet('score-math', s.math_score || 0);
+    safeSet('score-english', s.english_score || 0);
+
+    // *** แก้ปุ่มค้าง ***
     const submitBtn = document.querySelector('#student-form button[type="submit"]');
-    if(submitBtn) {
+    if (submitBtn) {
         submitBtn.innerText = "บันทึก";
         submitBtn.disabled = false;
         submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
     }
 
-    // *** จุดที่แก้ไข: เช็คหัวข้อ Modal ***
+    // เปลี่ยนหัวข้อ (แบบปลอดภัย)
     const titleEl = document.getElementById('modal-title');
-    if(titleEl) titleEl.innerText = "แก้ไขข้อมูลผู้สมัคร"; // ใช้ innerText แทน textContent เพื่อความชัวร์
+    if (titleEl) titleEl.innerText = "แก้ไขข้อมูลผู้สมัคร";
     
+    // เปิด Modal
     const modal = document.getElementById('student-modal');
-    if(modal) {
+    if (modal) {
         modal.classList.remove('hidden-force');
         modal.classList.add('flex');
     }
