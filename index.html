@@ -1171,14 +1171,18 @@ function triggerSearch() { searchQuery = document.getElementById('search-input')
 function renderStudentView() {
     if(!currentUser) return;
 
-    // --- 1. คำนวณคะแนน (Logic เดิม) ---
-    const maxSci = 40; const maxMath = 30; const maxEng = 40; const maxTotal = 110;
+    // --- 1. ตั้งค่าคะแนนเต็ม (ตามที่แก้ไขล่าสุด) ---
+    const maxSci = 40; 
+    const maxMath = 30; 
+    const maxEng = 40; 
+    const maxTotal = 110;
 
     const sSci = parseFloat(currentUser.science_score)||0;
     const sMath = parseFloat(currentUser.math_score)||0;
     const sEng = parseFloat(currentUser.english_score)||0;
     const sTotal = sSci + sMath + sEng;
 
+    // คำนวณ % เพื่อใช้กับหลอดพลัง (Progress Bar) เท่านั้น (แต่ไม่แสดงตัวเลข %)
     const pSci = (sSci/maxSci)*100;
     const pMath = (sMath/maxMath)*100;
     const pEng = (sEng/maxEng)*100;
@@ -1197,9 +1201,7 @@ function renderStudentView() {
 
             <div class="bg-white rounded-[2rem] p-8 mb-4 md:mb-6 shadow-xl relative overflow-hidden border border-lime-100 text-center">
                 <div class="relative z-10 flex flex-col items-center">
-                    
                     <img src="https://img5.pic.in.th/file/secure-sv1/-69-1112b7dae5160e09f.png" alt="Logo" class="w-56 h-auto mb-6 drop-shadow-md hover:scale-105 transition-transform duration-500">
-                    
                     <h1 class="text-xl md:text-2xl font-bold text-lime-900 leading-tight mb-2">
                         ประกาศผลคะแนนการสอบแข่งขันทักษะวิชาการเพชรราชพฤกษ์
                     </h1>
@@ -1225,6 +1227,7 @@ function renderStudentView() {
                     ออกจากระบบ
                 </button>
             </div>
+
             <div class="bg-white rounded-[2rem] p-6 shadow-xl mb-6 relative overflow-hidden border border-lime-100">
                 <div class="absolute top-0 right-0 w-32 h-32 bg-lime-50 rounded-full -mr-10 -mt-10 opacity-60"></div>
                 <div class="flex flex-col md:flex-row items-center gap-6 relative z-10">
@@ -1270,20 +1273,55 @@ function renderStudentView() {
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-2 relative overflow-hidden group hover:shadow-md transition-shadow">
                     <div class="absolute right-0 top-0 w-16 h-16 bg-blue-50 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-110"></div>
-                    <div class="flex justify-between items-center mb-1 relative z-10"><div class="flex items-center gap-2"><div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-500"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg></div><span class="text-gray-600 text-xs font-bold uppercase tracking-wider">วิทยาศาสตร์</span></div><span class="text-[10px] text-gray-400 font-bold bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100">เต็ม ${maxSci}</span></div>
-                    <div class="flex justify-between items-end relative z-10"><span class="text-3xl font-bold text-gray-800">${sSci}</span><span class="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">ร้อยละ ${pSci.toFixed(1)}</span></div>
+                    <div class="flex justify-between items-center mb-1 relative z-10">
+                        <div class="flex items-center gap-2">
+                            <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-500"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg></div>
+                            <span class="text-gray-600 text-xs font-bold uppercase tracking-wider">วิทยาศาสตร์</span>
+                        </div>
+                        <span class="text-[10px] text-gray-400 font-bold bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100">เต็ม ${maxSci}</span>
+                    </div>
+                    
+                    <div class="flex justify-between items-center mt-2 relative z-10">
+                        <span class="text-sm text-gray-500 font-bold">คะแนนที่ได้</span>
+                        <span class="text-3xl font-bold text-gray-800">${sSci}</span>
+                    </div>
+                    
                     <div class="w-full bg-gray-100 h-2 rounded-full overflow-hidden mt-3 relative z-10"><div class="bg-blue-400 h-2 rounded-full" style="width: ${pSci}%"></div></div>
                 </div>
+
                 <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-2 relative overflow-hidden group hover:shadow-md transition-shadow">
                     <div class="absolute right-0 top-0 w-16 h-16 bg-red-50 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-110"></div>
-                    <div class="flex justify-between items-center mb-1 relative z-10"><div class="flex items-center gap-2"><div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg></div><span class="text-gray-600 text-xs font-bold uppercase tracking-wider">คณิตศาสตร์</span></div><span class="text-[10px] text-gray-400 font-bold bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100">เต็ม ${maxMath}</span></div>
-                    <div class="flex justify-between items-end relative z-10"><span class="text-3xl font-bold text-gray-800">${sMath}</span><span class="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded-lg">ร้อยละ ${pMath.toFixed(1)}</span></div>
+                    <div class="flex justify-between items-center mb-1 relative z-10">
+                        <div class="flex items-center gap-2">
+                            <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg></div>
+                            <span class="text-gray-600 text-xs font-bold uppercase tracking-wider">คณิตศาสตร์</span>
+                        </div>
+                        <span class="text-[10px] text-gray-400 font-bold bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100">เต็ม ${maxMath}</span>
+                    </div>
+                    
+                    <div class="flex justify-between items-center mt-2 relative z-10">
+                        <span class="text-sm text-gray-500 font-bold">คะแนนที่ได้</span>
+                        <span class="text-3xl font-bold text-gray-800">${sMath}</span>
+                    </div>
+
                     <div class="w-full bg-gray-100 h-2 rounded-full overflow-hidden mt-3 relative z-10"><div class="bg-red-400 h-2 rounded-full" style="width: ${pMath}%"></div></div>
                 </div>
+
                 <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-2 relative overflow-hidden group hover:shadow-md transition-shadow">
                     <div class="absolute right-0 top-0 w-16 h-16 bg-purple-50 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-110"></div>
-                    <div class="flex justify-between items-center mb-1 relative z-10"><div class="flex items-center gap-2"><div class="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-500"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"></path></svg></div><span class="text-gray-600 text-xs font-bold uppercase tracking-wider">ภาษาอังกฤษ</span></div><span class="text-[10px] text-gray-400 font-bold bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100">เต็ม ${maxEng}</span></div>
-                    <div class="flex justify-between items-end relative z-10"><span class="text-3xl font-bold text-gray-800">${sEng}</span><span class="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-1 rounded-lg">ร้อยละ ${pEng.toFixed(1)}</span></div>
+                    <div class="flex justify-between items-center mb-1 relative z-10">
+                        <div class="flex items-center gap-2">
+                            <div class="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-500"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"></path></svg></div>
+                            <span class="text-gray-600 text-xs font-bold uppercase tracking-wider">ภาษาอังกฤษ</span>
+                        </div>
+                        <span class="text-[10px] text-gray-400 font-bold bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100">เต็ม ${maxEng}</span>
+                    </div>
+                    
+                    <div class="flex justify-between items-center mt-2 relative z-10">
+                        <span class="text-sm text-gray-500 font-bold">คะแนนที่ได้</span>
+                        <span class="text-3xl font-bold text-gray-800">${sEng}</span>
+                    </div>
+
                     <div class="w-full bg-gray-100 h-2 rounded-full overflow-hidden mt-3 relative z-10"><div class="bg-purple-400 h-2 rounded-full" style="width: ${pEng}%"></div></div>
                 </div>
             </div>
