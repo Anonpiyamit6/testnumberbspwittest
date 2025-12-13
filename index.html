@@ -867,7 +867,6 @@ function renderRankingView(allStudents) {
         isFilteredMode = true;
     }
 
-    // 1. ประมวลผลหา "ตัวจริง" (Clearing House)
     const allocationResult = executeClearingHouse(processingData, quotas[adminTab]);
     
     let renderList = [];
@@ -876,7 +875,7 @@ function renderRankingView(allStudents) {
     let title = isFilteredMode ? "สรุปผลคัดเลือก (ตัด Pre-test)" : "จัดลำดับคะแนน (Raw Data)";
 
     if (rankingTab === 'all' || rankingTab === 'filtered') {
-        // === ภาพรวม (เหมือนเดิม) ===
+        // === ภาพรวม (เรียงตามคะแนนรวมเหมือนเดิม) ===
         renderList = [...processingData].sort((a,b) => b.total_score - a.total_score).map((s, i) => {
             const result = allocationResult[s.__backendId];
             return {
@@ -904,11 +903,11 @@ function renderRankingView(allStudents) {
         }
 
     } else {
-        // === แยกโครงการ (Logic สำรองแบบใหม่) ===
+        // === แยกโครงการ (Logic ใหม่: ตัวจริง > สำรองเลือก 1 > สำรองเลือก 2 > สำรองเลือก 3) ===
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
         showQuota = (quotas[adminTab] && quotas[adminTab][targetProgram]) || 0;
 
-        // Helper: หาว่าโครงการนี้อยู่อันดับที่เท่าไหร่ของเด็กคนนี้ (1, 2, 3 หรือ 99=ไม่เลือก)
+        // Helper: ดูว่าเด็กเลือกโครงการนี้ไว้อันดับที่เท่าไหร่
         const getChoiceRank = (student, prog) => {
             if (student.choice_1 === prog) return 1;
             if (student.choice_2 === prog) return 2;
@@ -916,29 +915,22 @@ function renderRankingView(allStudents) {
             return 99;
         };
 
+        // 1. ดึงคนมาแสดง
         renderList = processingData.filter(s => {
-            const officialResult = allocationResult[s.__backendId];
-            const targetRank = getChoiceRank(s, targetProgram); // โครงการนี้เด็กเลือกอันดับไหน
-            
-            // ถ้าไม่ได้เลือกโครงการนี้เลย -> ไม่เอา
-            if (targetRank === 99) return false;
+            const targetRank = getChoiceRank(s, targetProgram);
+            if (targetRank === 99) return false; // ไม่ได้เลือกโครงการนี้เลย
 
-            // กรณี 1: เป็นตัวจริงของโครงการนี้ -> เอา
+            const officialResult = allocationResult[s.__backendId];
+            
+            // กรณี 1: เป็นตัวจริง -> เอา
             if (officialResult && officialResult.program === targetProgram) return true;
 
-            // กรณี 2: เป็นสำรอง (คือ ต้องเลือกโครงการนี้ ไว้ "ก่อน" หรือ "สูงกว่า" โครงการที่ตัวเองได้)
-            // เช่น เลือก S&M(1), GATE(2) -> ได้ GATE
-            // พิจารณา S&M: targetRank(1) < officialRank(2) -> จริง (เป็นสำรอง S&M)
-            const officialRank = officialResult ? getChoiceRank(s, officialResult.program) : 99; // 99 คือไม่ติดที่ไหนเลย
-            
-            if (targetRank < officialRank) {
-                return true; // เป็นสำรองของที่นี่
-            }
-
-            return false; // กรณีอื่นๆ (เช่น ได้อันดับ 1 แล้ว ไม่ต้องมาโชว์ในรายชื่ออันดับ 2)
+            // กรณี 2: เป็นสำรอง (ต้องเลือกโครงการนี้ "ก่อน" หรือ "สูงกว่า" โครงการที่ได้)
+            const officialRank = officialResult ? getChoiceRank(s, officialResult.program) : 99;
+            return targetRank < officialRank; 
         });
 
-        // คำนวณคะแนนและกำหนดสถานะ
+        // 2. คำนวณค่า
         renderList = renderList.map(s => {
             const officialResult = allocationResult[s.__backendId];
             const isReal = officialResult && officialResult.program === targetProgram;
@@ -946,24 +938,38 @@ function renderRankingView(allStudents) {
                 ...s,
                 display_score: getWeightedScore(s, targetProgram),
                 is_real: isReal,
-                official_result: officialResult
+                official_result: officialResult,
+                choice_priority: getChoiceRank(s, targetProgram) // เก็บไว้ใช้เรียง
             };
         });
 
-        // เรียงลำดับ (ตัวจริง > สำรอง, คะแนนมาก > น้อย)
+        // 3. เรียงลำดับ (Logic สำคัญอยู่ตรงนี้)
         renderList.sort((a, b) => {
+            // 1. ตัวจริงต้องมาก่อนเสมอ
             if (a.is_real && !b.is_real) return -1;
             if (!a.is_real && b.is_real) return 1;
+            
+            // 2. ถ้าเป็นสำรองเหมือนกัน -> เรียงตามลำดับการเลือก (1 มาก่อน 2 มาก่อน 3)
+            if (!a.is_real && !b.is_real) {
+                if (a.choice_priority !== b.choice_priority) {
+                    return a.choice_priority - b.choice_priority; // น้อยไปมาก (1 > 2 > 3)
+                }
+            }
+
+            // 3. ถ้าทุกอย่างเท่ากัน -> วัดที่คะแนน (มากไปน้อย)
             return b.display_score - a.display_score;
         });
 
-        // รันเลขและใส่ข้อความ
+        // 4. รันเลขและใส่ข้อความ
         let currentRank = 1;
         for (let i = 0; i < renderList.length; i++) {
             if (i > 0) {
                 const scoreSame = Math.abs(renderList[i].display_score - renderList[i-1].display_score) < 0.00001;
-                const statusSame = renderList[i].is_real === renderList[i-1].is_real;
-                if (scoreSame && statusSame) {
+                const statusSame = (renderList[i].is_real === renderList[i-1].is_real);
+                // ต้องลำดับการเลือกเท่ากันด้วย ถึงจะถือว่า rank เท่ากัน
+                const choiceSame = (renderList[i].choice_priority === renderList[i-1].choice_priority);
+
+                if (scoreSame && statusSame && choiceSame) {
                     renderList[i].rank = renderList[i-1].rank;
                 } else {
                     currentRank++;
@@ -979,9 +985,10 @@ function renderRankingView(allStudents) {
             } else {
                 renderList[i].status_type = 'reserve';
                 const other = renderList[i].official_result;
-                // แสดงผลว่า สำรอง (ติดที่อื่น)
-                if (other) renderList[i].status_text = `สำรอง (ติด ${other.program})`;
-                else renderList[i].status_text = 'สำรอง';
+                // ระบุด้วยว่าเลือกไว้อันดับที่เท่าไหร่
+                let text = `สำรอง (เลือกอันดับ ${renderList[i].choice_priority})`;
+                if (other) text += ` ติด ${other.program}`;
+                renderList[i].status_text = text;
             }
         }
     }
@@ -1001,7 +1008,7 @@ function renderRankingView(allStudents) {
     <div class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
             <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">${title} ${adminTab==='m1'?'ม.1':'ม.4'}</h1>
-            <p class="text-sm text-gray-500">เกณฑ์: เรียงลำดับ <span class="text-lime-600 font-bold">ตัวจริง</span> ก่อน <span class="text-orange-500 font-bold">สำรอง</span> (เฉพาะผู้พลาดหวังจากลำดับที่เลือก)</p>
+            <p class="text-sm text-gray-500">เกณฑ์: <span class="text-lime-600 font-bold">ตัวจริง</span> > <span class="text-orange-500 font-bold">สำรอง(เลือกอันดับ 1)</span> > <span class="text-orange-500 font-bold">สำรอง(เลือกอันดับ 2)</span>...</p>
             <div class="flex flex-wrap gap-2 mt-2">
                 ${tabs.map(t => `<button onclick="rankingTab='${t.id}';renderAdminDashboard();" class="px-4 py-2 rounded-xl text-sm font-bold transition-all border ${rankingTab===t.id ? 'bg-teal-500 text-white border-teal-500 shadow-lg shadow-teal-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}">${t.label}</button>`).join('')}
             </div>
@@ -1077,7 +1084,6 @@ function exportToWord() {
     }
 
     const allocationResult = executeClearingHouse(activeData, quotas[adminTab]);
-    
     let dataList = [];
     let title = "";
     let scoreTypeLabel = "";
@@ -1094,7 +1100,6 @@ function exportToWord() {
     } else {
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
 
-        // Logic กรองคน (เหมือนหน้าจอ)
         const getChoiceRank = (student, prog) => {
             if (student.choice_1 === prog) return 1;
             if (student.choice_2 === prog) return 2;
@@ -1105,10 +1110,8 @@ function exportToWord() {
         dataList = activeData.filter(s => {
             const targetRank = getChoiceRank(s, targetProgram);
             if (targetRank === 99) return false;
-
             const officialResult = allocationResult[s.__backendId];
             if (officialResult && officialResult.program === targetProgram) return true; 
-
             const officialRank = officialResult ? getChoiceRank(s, officialResult.program) : 99;
             return targetRank < officialRank; 
         });
@@ -1120,13 +1123,17 @@ function exportToWord() {
                 ...s,
                 score_to_show: getWeightedScore(s, targetProgram),
                 is_real: isReal,
-                official_result: officialResult
+                official_result: officialResult,
+                choice_priority: getChoiceRank(s, targetProgram)
             };
         });
 
         dataList.sort((a, b) => {
             if (a.is_real && !b.is_real) return -1;
             if (!a.is_real && b.is_real) return 1;
+            if (!a.is_real && !b.is_real) {
+                if (a.choice_priority !== b.choice_priority) return a.choice_priority - b.choice_priority;
+            }
             return b.score_to_show - a.score_to_show;
         });
         
@@ -1140,11 +1147,10 @@ function exportToWord() {
     for (let i = 0; i < dataList.length; i++) {
         if (i > 0) {
             const scoreSame = Math.abs(dataList[i].score_to_show - dataList[i-1].score_to_show) < 0.00001;
-            const statusSame = (rankingTab !== 'all' && rankingTab !== 'filtered') 
-                                ? (dataList[i].is_real === dataList[i-1].is_real) 
-                                : true; 
+            const statusSame = (dataList[i].is_real === dataList[i-1].is_real);
+            const choiceSame = (dataList[i].choice_priority === dataList[i-1].choice_priority);
 
-            if (scoreSame && statusSame) {
+            if (scoreSame && statusSame && choiceSame) {
                 dataList[i].rank = dataList[i-1].rank;
             } else {
                 currentRank++;
@@ -1159,8 +1165,9 @@ function exportToWord() {
                 dataList[i].status_text = 'ตัวจริง';
             } else {
                 const other = dataList[i].official_result;
-                if (other) dataList[i].status_text = `สำรอง (ติด ${other.program})`;
-                else dataList[i].status_text = 'สำรอง';
+                let text = `สำรอง (เลือกอันดับ ${dataList[i].choice_priority})`;
+                if (other) text += ` ติด ${other.program}`;
+                dataList[i].status_text = text;
             }
         }
     }
@@ -1792,7 +1799,6 @@ function exportRankingToExcel() {
     }
 
     const allocationResult = executeClearingHouse(activeData, quotas[adminTab]);
-    
     let dataList = [];
     let fileName = "";
 
@@ -1807,7 +1813,6 @@ function exportRankingToExcel() {
     } else {
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
 
-        // Logic กรองคน (เหมือนหน้าจอ)
         const getChoiceRank = (student, prog) => {
             if (student.choice_1 === prog) return 1;
             if (student.choice_2 === prog) return 2;
@@ -1818,16 +1823,12 @@ function exportRankingToExcel() {
         dataList = activeData.filter(s => {
             const targetRank = getChoiceRank(s, targetProgram);
             if (targetRank === 99) return false;
-
             const officialResult = allocationResult[s.__backendId];
-            if (officialResult && officialResult.program === targetProgram) return true; // ตัวจริง
-
+            if (officialResult && officialResult.program === targetProgram) return true; 
             const officialRank = officialResult ? getChoiceRank(s, officialResult.program) : 99;
-            // เป็นสำรอง ถ้าเลือกโครงการนี้ ไว้สูงกว่าโครงการที่ติด
             return targetRank < officialRank; 
         });
 
-        // คำนวณค่าเพื่อใช้ Sort
         dataList = dataList.map(s => {
             const officialResult = allocationResult[s.__backendId];
             const isReal = officialResult && officialResult.program === targetProgram;
@@ -1835,14 +1836,18 @@ function exportRankingToExcel() {
                 ...s,
                 score_to_show: getWeightedScore(s, targetProgram),
                 is_real: isReal,
-                official_result: officialResult
+                official_result: officialResult,
+                choice_priority: getChoiceRank(s, targetProgram)
             };
         });
 
-        // Sort
+        // Sort: Real > Choice 1 > Choice 2 > Choice 3
         dataList.sort((a, b) => {
             if (a.is_real && !b.is_real) return -1;
             if (!a.is_real && b.is_real) return 1;
+            if (!a.is_real && !b.is_real) {
+                if (a.choice_priority !== b.choice_priority) return a.choice_priority - b.choice_priority;
+            }
             return b.score_to_show - a.score_to_show;
         });
 
@@ -1851,14 +1856,14 @@ function exportRankingToExcel() {
 
     if (dataList.length === 0) return showAlert('แจ้งเตือน', 'ไม่มีข้อมูล');
 
-    // รันเลขลำดับ
     let currentRank = 1;
     for (let i = 0; i < dataList.length; i++) {
         if (i > 0) {
             const scoreSame = Math.abs(dataList[i].score_to_show - dataList[i-1].score_to_show) < 0.00001;
-            const statusSame = (dataList[i].is_real === dataList[i-1].is_real); 
+            const statusSame = (dataList[i].is_real === dataList[i-1].is_real);
+            const choiceSame = (dataList[i].choice_priority === dataList[i-1].choice_priority);
 
-            if (scoreSame && statusSame) {
+            if (scoreSame && statusSame && choiceSame) {
                 dataList[i].rank = dataList[i-1].rank;
             } else {
                 currentRank++;
@@ -1873,8 +1878,9 @@ function exportRankingToExcel() {
                 dataList[i].status_text = 'ตัวจริง';
             } else {
                 const other = dataList[i].official_result;
-                if (other) dataList[i].status_text = `สำรอง (ติด ${other.program})`;
-                else dataList[i].status_text = 'สำรอง';
+                let text = `สำรอง (เลือกอันดับ ${dataList[i].choice_priority})`;
+                if (other) text += ` ติด ${other.program}`;
+                dataList[i].status_text = text;
             }
         }
     }
