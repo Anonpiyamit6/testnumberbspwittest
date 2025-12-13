@@ -1858,32 +1858,30 @@ function renderInterviewView(allStudents) {
     }
 
     const targetProgramName = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
+    
+    // *** แก้ไขตรงนี้: กำหนดจำนวนรับตัวจริงในรอบนี้เป็น 40 คนถ้วน ***
+    const practicalQuota = 40; 
+    
     const maxPractical = (targetProgramName === 'S&M' || targetProgramName === 'SME') ? 20 : 100;
     const maxTotal = 100 + maxPractical;
     
-    // Helper: ฟังก์ชันคำนวณคะแนนย่อยรายวิชา (Weighted Subject Score)
     const getSubScore = (score, subject, program) => {
         const s = parseFloat(score) || 0;
         const p = program.toLowerCase();
-        // S&M / SME
         if (p.includes('s&m') || p.includes('sme')) {
             if (subject === 'sci') return s * 1.0;
-            if (subject === 'math') return s * (40/30); // 1.333...
+            if (subject === 'math') return s * (40/30);
             if (subject === 'eng') return s * 0.5;
-        }
-        // GATE
-        else if (p.includes('gate')) {
+        } else if (p.includes('gate')) {
             if (subject === 'sci') return s * 0.875;
-            if (subject === 'math') return s * (35/30); // 1.166...
+            if (subject === 'math') return s * (35/30);
             if (subject === 'eng') return s * 0.75;
-        }
-        // EIS
-        else if (p.includes('eis')) {
+        } else if (p.includes('eis')) {
             if (subject === 'sci') return s * 0.75;
             if (subject === 'math') return s * 1.0;
             if (subject === 'eng') return s * 1.0;
         }
-        return s; // Default
+        return s;
     };
 
     let interviewList = allStudents.filter(s => {
@@ -1892,23 +1890,44 @@ function renderInterviewView(allStudents) {
     });
 
     interviewList = interviewList.map(s => {
-        // *** คำนวณคะแนนรายวิชาแบบถ่วงน้ำหนัก ***
         const w_sci = getSubScore(s.science_score, 'sci', targetProgramName);
         const w_math = getSubScore(s.math_score, 'math', targetProgramName);
         const w_eng = getSubScore(s.english_score, 'eng', targetProgramName);
-        
-        // คะแนนรวมข้อเขียน (เอาคะแนนย่อยมารวมกัน จะได้เท่ากับ getWeightedScore พอดี)
         const written = w_sci + w_math + w_eng;
-        
         const practical = parseFloat(s.practical_score) || 0;
         return { 
-            ...s, 
-            w_sci, w_math, w_eng, // ส่งค่าคะแนนถ่วงน้ำหนักออกไปแสดง
+            ...s, w_sci, w_math, w_eng, 
             written_score: written,
             practical_score: practical, 
             grand_total: written + practical 
         };
     }).sort((a, b) => b.grand_total - a.grand_total);
+
+    // --- คำนวณสถานะ ตัวจริง (40 คนแรก) / สำรอง ---
+    let currentRank = 1;
+    for (let i = 0; i < interviewList.length; i++) {
+        if (i > 0) {
+            if (Math.abs(interviewList[i].grand_total - interviewList[i-1].grand_total) < 0.00001) {
+                interviewList[i].final_rank = interviewList[i-1].final_rank;
+            } else {
+                currentRank = i + 1;
+                interviewList[i].final_rank = currentRank;
+            }
+        } else {
+            interviewList[i].final_rank = 1;
+        }
+
+        // ตัดเกณฑ์ที่ 40 คน
+        if (interviewList[i].final_rank <= practicalQuota) {
+            interviewList[i].final_status = 'ตัวจริง';
+            interviewList[i].is_pass = true;
+        } else {
+            // สำรองลำดับที่... (เอาลำดับปัจจุบัน - 40)
+            const reserveRank = interviewList[i].final_rank - practicalQuota;
+            interviewList[i].final_status = `สำรอง ${reserveRank}`;
+            interviewList[i].is_pass = false;
+        }
+    }
 
     const tabs = adminTab === 'm1' 
         ? [{ id: 'sm', label: 'S&M' }, { id: 'gate', label: 'GATE' }, { id: 'eis', label: 'EIS' }]
@@ -1918,7 +1937,7 @@ function renderInterviewView(allStudents) {
     <div class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
             <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">บันทึกคะแนนปฏิบัติ ${adminTab==='m1'?'ม.1':'ม.4'}</h1>
-            <p class="text-sm text-gray-500">แสดงคะแนนรายวิชาแบบ <span class="font-bold text-lime-600">ถ่วงน้ำหนัก (Weighted Score)</span> ตามเกณฑ์โครงการ</p>
+            <p class="text-sm text-gray-500">แสดงคะแนนรายวิชาแบบ <span class="font-bold text-lime-600">ถ่วงน้ำหนัก</span> และจัดลำดับตามคะแนนรวมสุทธิ</p>
             <div class="flex flex-wrap gap-2 mt-2">
                 ${tabs.map(t => `<button onclick="rankingTab='${t.id}';renderAdminDashboard();" class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border shadow-sm ${rankingTab===t.id ? 'bg-lime-500 text-white border-lime-500 shadow-lg shadow-lime-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}">${t.label}</button>`).join('')}
             </div>
@@ -1940,9 +1959,9 @@ function renderInterviewView(allStudents) {
         <div class="p-6 bg-lime-50/50 border-b border-lime-100 flex justify-between items-center">
             <div>
                 <h3 class="font-bold text-lime-800 text-lg flex items-center gap-2"><span class="w-2 h-6 bg-lime-500 rounded-full inline-block"></span> โครงการ ${targetProgramName}</h3>
-                <p class="text-xs text-lime-600 mt-1 pl-4">คะแนนเต็ม: ข้อเขียน (ร้อยละ 100) + ปฏิบัติ (${maxPractical}) = ${maxTotal}</p>
+                <p class="text-xs text-lime-600 mt-1 pl-4">คะแนนเต็ม: ข้อเขียน (100) + ปฏิบัติ (${maxPractical}) = ${maxTotal} | ตัวจริง: ${practicalQuota} คน</p>
             </div>
-            <div class="text-sm font-bold text-gray-500 bg-white px-4 py-2 rounded-xl shadow-sm">จำนวนผู้มีสิทธิ์: <span class="text-lime-600 text-lg">${interviewList.length}</span> คน</div>
+            <div class="text-sm font-bold text-gray-500 bg-white px-4 py-2 rounded-xl shadow-sm">ผู้มีสิทธิ์สอบ: <span class="text-lime-600 text-lg">${interviewList.length}</span> คน</div>
         </div>
         
         <div class="overflow-x-auto">
@@ -1957,13 +1976,14 @@ function renderInterviewView(allStudents) {
                         <th class="px-4 py-4 text-center border-b border-gray-100 bg-gray-50">รวมข้อเขียน<br>(100)</th>
                         <th class="px-4 py-4 text-center border-b border-lime-100 bg-lime-50 text-lime-700">คะแนนปฏิบัติ<br>(เต็ม ${maxPractical})</th>
                         <th class="px-4 py-4 text-center border-b border-gray-100">รวมสุทธิ<br>(เต็ม ${maxTotal})</th>
+                        <th class="px-4 py-4 text-center border-b border-gray-100">ผลการคัดเลือก</th>
                         <th class="px-4 py-4 text-center border-b border-gray-100">จัดการ</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50 text-sm">
                     ${interviewList.length > 0 ? interviewList.map((s, i) => `
                     <tr class="hover:bg-lime-50/30 transition-colors group">
-                        <td class="px-4 py-4 text-center font-bold text-gray-400 group-hover:text-lime-600">#${i+1}</td>
+                        <td class="px-4 py-4 text-center font-bold text-gray-400 group-hover:text-lime-600">#${s.final_rank}</td>
                         <td class="px-4 py-4">
                             <div class="font-bold text-gray-800">${s.full_name}</div>
                             <div class="text-xs text-gray-400 font-mono mt-0.5">${s.exam_id}</div>
@@ -1974,10 +1994,18 @@ function renderInterviewView(allStudents) {
                         <td class="px-4 py-4 text-center font-bold text-gray-700 bg-gray-50 group-hover:bg-lime-50/20 text-lg">${s.written_score.toFixed(2)}</td>
                         <td class="px-4 py-4 text-center font-bold text-lime-700 bg-lime-50/20">${s.practical_score > 0 ? s.practical_score.toFixed(2) : '-'}</td>
                         <td class="px-4 py-4 text-center font-black text-gray-800 text-lg">${s.grand_total.toFixed(2)}</td>
+                        
+                        <td class="px-4 py-4 text-center">
+                            ${s.is_pass 
+                                ? `<span class="inline-block px-3 py-1 rounded-full bg-green-100 text-green-700 font-bold text-xs shadow-sm whitespace-nowrap">ตัวจริง</span>` 
+                                : `<span class="inline-block px-3 py-1 rounded-full bg-orange-100 text-orange-700 font-bold text-xs shadow-sm whitespace-nowrap">${s.final_status}</span>`
+                            }
+                        </td>
+
                         <td class="px-4 py-4 text-center">
                             <button onclick="showInterviewForm('${s.__backendId}', ${maxPractical}, '${targetProgramName}')" class="px-4 py-2 bg-lime-100 hover:bg-lime-200 text-lime-700 rounded-xl text-xs font-bold shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2 mx-auto border border-lime-200"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>ให้คะแนน</button>
                         </td>
-                    </tr>`).join('') : `<tr><td colspan="9" class="text-center py-12 text-gray-400">ไม่มีข้อมูล</td></tr>`}
+                    </tr>`).join('') : `<tr><td colspan="10" class="text-center py-12 text-gray-400">ไม่มีข้อมูล</td></tr>`}
                 </tbody>
             </table>
         </div>
