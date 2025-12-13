@@ -867,6 +867,7 @@ function renderRankingView(allStudents) {
         isFilteredMode = true;
     }
 
+    // 1. ประมวลผลหา "ตัวจริง" (Clearing House)
     const allocationResult = executeClearingHouse(processingData, quotas[adminTab]);
     
     let renderList = [];
@@ -875,7 +876,7 @@ function renderRankingView(allStudents) {
     let title = isFilteredMode ? "สรุปผลคัดเลือก (ตัด Pre-test)" : "จัดลำดับคะแนน (Raw Data)";
 
     if (rankingTab === 'all' || rankingTab === 'filtered') {
-        // === ภาพรวม (เรียงตามคะแนนดิบ 110) ===
+        // === ภาพรวม (เหมือนเดิม) ===
         renderList = [...processingData].sort((a,b) => b.total_score - a.total_score).map((s, i) => {
             const result = allocationResult[s.__backendId];
             return {
@@ -903,46 +904,65 @@ function renderRankingView(allStudents) {
         }
 
     } else {
-        // === แยกโครงการ (เรียง ตัวจริง > สำรอง) ===
+        // === แยกโครงการ (Logic สำรองแบบใหม่) ===
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
         showQuota = (quotas[adminTab] && quotas[adminTab][targetProgram]) || 0;
 
-        // 1. ดึงทุกคนที่เลือกโครงการนี้
-        renderList = processingData.filter(s => 
-            s.choice_1 === targetProgram || s.choice_2 === targetProgram || s.choice_3 === targetProgram
-        );
+        // Helper: หาว่าโครงการนี้อยู่อันดับที่เท่าไหร่ของเด็กคนนี้ (1, 2, 3 หรือ 99=ไม่เลือก)
+        const getChoiceRank = (student, prog) => {
+            if (student.choice_1 === prog) return 1;
+            if (student.choice_2 === prog) return 2;
+            if (student.choice_3 === prog) return 3;
+            return 99;
+        };
 
-        // 2. คำนวณคะแนนและสถานะเบื้องต้น
+        renderList = processingData.filter(s => {
+            const officialResult = allocationResult[s.__backendId];
+            const targetRank = getChoiceRank(s, targetProgram); // โครงการนี้เด็กเลือกอันดับไหน
+            
+            // ถ้าไม่ได้เลือกโครงการนี้เลย -> ไม่เอา
+            if (targetRank === 99) return false;
+
+            // กรณี 1: เป็นตัวจริงของโครงการนี้ -> เอา
+            if (officialResult && officialResult.program === targetProgram) return true;
+
+            // กรณี 2: เป็นสำรอง (คือ ต้องเลือกโครงการนี้ ไว้ "ก่อน" หรือ "สูงกว่า" โครงการที่ตัวเองได้)
+            // เช่น เลือก S&M(1), GATE(2) -> ได้ GATE
+            // พิจารณา S&M: targetRank(1) < officialRank(2) -> จริง (เป็นสำรอง S&M)
+            const officialRank = officialResult ? getChoiceRank(s, officialResult.program) : 99; // 99 คือไม่ติดที่ไหนเลย
+            
+            if (targetRank < officialRank) {
+                return true; // เป็นสำรองของที่นี่
+            }
+
+            return false; // กรณีอื่นๆ (เช่น ได้อันดับ 1 แล้ว ไม่ต้องมาโชว์ในรายชื่ออันดับ 2)
+        });
+
+        // คำนวณคะแนนและกำหนดสถานะ
         renderList = renderList.map(s => {
             const officialResult = allocationResult[s.__backendId];
             const isReal = officialResult && officialResult.program === targetProgram;
             return {
                 ...s,
                 display_score: getWeightedScore(s, targetProgram),
-                is_real: isReal, // Flag ไว้ใช้เรียงลำดับ
-                official_result: officialResult // เก็บผลจริงไว้เช็คว่าติดที่อื่นไหม
+                is_real: isReal,
+                official_result: officialResult
             };
         });
 
-        // 3. เรียงลำดับ (ตัวจริงมาก่อน -> ตามด้วยคะแนน)
+        // เรียงลำดับ (ตัวจริง > สำรอง, คะแนนมาก > น้อย)
         renderList.sort((a, b) => {
-            // Priority 1: ตัวจริงต้องอยู่บน (True > False)
             if (a.is_real && !b.is_real) return -1;
             if (!a.is_real && b.is_real) return 1;
-            
-            // Priority 2: คะแนนมากไปน้อย
             return b.display_score - a.display_score;
         });
 
-        // 4. รันเลขลำดับและกำหนดข้อความสถานะ
+        // รันเลขและใส่ข้อความ
         let currentRank = 1;
         for (let i = 0; i < renderList.length; i++) {
-            // รันเลขลำดับ (1, 2, 2, 3...)
             if (i > 0) {
-                // เช็คคะแนนเท่ากัน (และต้องสถานะเดียวกันด้วย ถึงจะเลขซ้ำได้)
                 const scoreSame = Math.abs(renderList[i].display_score - renderList[i-1].display_score) < 0.00001;
                 const statusSame = renderList[i].is_real === renderList[i-1].is_real;
-
                 if (scoreSame && statusSame) {
                     renderList[i].rank = renderList[i-1].rank;
                 } else {
@@ -953,23 +973,19 @@ function renderRankingView(allStudents) {
                 renderList[i].rank = 1;
             }
 
-            // ข้อความสถานะ
             if (renderList[i].is_real) {
                 renderList[i].status_type = 'pass';
                 renderList[i].status_text = 'ตัวจริง';
             } else {
                 renderList[i].status_type = 'reserve';
                 const other = renderList[i].official_result;
-                if (other) {
-                    renderList[i].status_text = `สำรอง (ติด ${other.program})`;
-                } else {
-                    renderList[i].status_text = 'สำรอง';
-                }
+                // แสดงผลว่า สำรอง (ติดที่อื่น)
+                if (other) renderList[i].status_text = `สำรอง (ติด ${other.program})`;
+                else renderList[i].status_text = 'สำรอง';
             }
         }
     }
 
-    // สร้างปุ่ม Tabs
     let tabs = [];
     if (isFilteredMode) {
         tabs = [{ id: 'filtered', label: 'สรุปภาพรวม (ตัด ป.4-5)' }];
@@ -985,7 +1001,7 @@ function renderRankingView(allStudents) {
     <div class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
             <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">${title} ${adminTab==='m1'?'ม.1':'ม.4'}</h1>
-            <p class="text-sm text-gray-500">เกณฑ์: เรียงลำดับ <span class="text-lime-600 font-bold">ตัวจริง</span> ก่อน <span class="text-orange-500 font-bold">สำรอง</span> ตามคะแนนร้อยละ</p>
+            <p class="text-sm text-gray-500">เกณฑ์: เรียงลำดับ <span class="text-lime-600 font-bold">ตัวจริง</span> ก่อน <span class="text-orange-500 font-bold">สำรอง</span> (เฉพาะผู้พลาดหวังจากลำดับที่เลือก)</p>
             <div class="flex flex-wrap gap-2 mt-2">
                 ${tabs.map(t => `<button onclick="rankingTab='${t.id}';renderAdminDashboard();" class="px-4 py-2 rounded-xl text-sm font-bold transition-all border ${rankingTab===t.id ? 'bg-teal-500 text-white border-teal-500 shadow-lg shadow-teal-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}">${t.label}</button>`).join('')}
             </div>
@@ -1078,9 +1094,24 @@ function exportToWord() {
     } else {
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
 
-        dataList = activeData.filter(s => 
-            s.choice_1 === targetProgram || s.choice_2 === targetProgram || s.choice_3 === targetProgram
-        );
+        // Logic กรองคน (เหมือนหน้าจอ)
+        const getChoiceRank = (student, prog) => {
+            if (student.choice_1 === prog) return 1;
+            if (student.choice_2 === prog) return 2;
+            if (student.choice_3 === prog) return 3;
+            return 99;
+        };
+
+        dataList = activeData.filter(s => {
+            const targetRank = getChoiceRank(s, targetProgram);
+            if (targetRank === 99) return false;
+
+            const officialResult = allocationResult[s.__backendId];
+            if (officialResult && officialResult.program === targetProgram) return true; 
+
+            const officialRank = officialResult ? getChoiceRank(s, officialResult.program) : 99;
+            return targetRank < officialRank; 
+        });
 
         dataList = dataList.map(s => {
             const officialResult = allocationResult[s.__backendId];
@@ -1776,12 +1807,27 @@ function exportRankingToExcel() {
     } else {
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
 
-        // 1. ดึงข้อมูล
-        dataList = activeData.filter(s => 
-            s.choice_1 === targetProgram || s.choice_2 === targetProgram || s.choice_3 === targetProgram
-        );
+        // Logic กรองคน (เหมือนหน้าจอ)
+        const getChoiceRank = (student, prog) => {
+            if (student.choice_1 === prog) return 1;
+            if (student.choice_2 === prog) return 2;
+            if (student.choice_3 === prog) return 3;
+            return 99;
+        };
 
-        // 2. คำนวณค่าเพื่อใช้ Sort
+        dataList = activeData.filter(s => {
+            const targetRank = getChoiceRank(s, targetProgram);
+            if (targetRank === 99) return false;
+
+            const officialResult = allocationResult[s.__backendId];
+            if (officialResult && officialResult.program === targetProgram) return true; // ตัวจริง
+
+            const officialRank = officialResult ? getChoiceRank(s, officialResult.program) : 99;
+            // เป็นสำรอง ถ้าเลือกโครงการนี้ ไว้สูงกว่าโครงการที่ติด
+            return targetRank < officialRank; 
+        });
+
+        // คำนวณค่าเพื่อใช้ Sort
         dataList = dataList.map(s => {
             const officialResult = allocationResult[s.__backendId];
             const isReal = officialResult && officialResult.program === targetProgram;
@@ -1793,7 +1839,7 @@ function exportRankingToExcel() {
             };
         });
 
-        // 3. Sort (ตัวจริง > สำรอง, คะแนนมาก > น้อย)
+        // Sort
         dataList.sort((a, b) => {
             if (a.is_real && !b.is_real) return -1;
             if (!a.is_real && b.is_real) return 1;
@@ -1805,12 +1851,12 @@ function exportRankingToExcel() {
 
     if (dataList.length === 0) return showAlert('แจ้งเตือน', 'ไม่มีข้อมูล');
 
-    // 4. รันเลขลำดับและข้อความ
+    // รันเลขลำดับ
     let currentRank = 1;
     for (let i = 0; i < dataList.length; i++) {
         if (i > 0) {
             const scoreSame = Math.abs(dataList[i].score_to_show - dataList[i-1].score_to_show) < 0.00001;
-            const statusSame = (dataList[i].is_real === dataList[i-1].is_real); // ต้องสถานะเดียวกันด้วย
+            const statusSame = (dataList[i].is_real === dataList[i-1].is_real); 
 
             if (scoreSame && statusSame) {
                 dataList[i].rank = dataList[i-1].rank;
