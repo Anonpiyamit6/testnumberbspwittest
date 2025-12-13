@@ -860,6 +860,7 @@ function renderRankingView(allStudents) {
     let processingData = allStudents;
     let isFilteredMode = false;
 
+    // ตรวจสอบโหมดกรองข้อมูล (ตัด ป.4-5)
     if (rankingTab === 'filtered') {
         if (adminTab === 'm1') {
             processingData = allStudents.filter(s => !['p4', 'p5'].includes(s.grade_level));
@@ -941,9 +942,7 @@ function renderRankingView(allStudents) {
             if (a.is_real && !b.is_real) return -1;
             if (!a.is_real && b.is_real) return 1;
             if (!a.is_real && !b.is_real) {
-                if (a.choice_priority !== b.choice_priority) {
-                    return a.choice_priority - b.choice_priority;
-                }
+                if (a.choice_priority !== b.choice_priority) return a.choice_priority - b.choice_priority;
             }
             return b.display_score - a.display_score;
         });
@@ -967,8 +966,7 @@ function renderRankingView(allStudents) {
 
             if (renderList[i].is_real) {
                 renderList[i].status_type = 'pass';
-                // *** แก้ไขตรงนี้ ***
-                renderList[i].status_text = 'ผ่านเกณฑ์โครงการ'; 
+                renderList[i].status_text = 'ผ่านเกณฑ์โครงการ';
             } else {
                 renderList[i].status_type = 'reserve';
                 const other = renderList[i].official_result;
@@ -994,20 +992,24 @@ function renderRankingView(allStudents) {
     <div class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
             <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">${title} ${adminTab==='m1'?'ม.1':'ม.4'}</h1>
-            <p class="text-sm text-gray-500">เกณฑ์: เรียงลำดับ <span class="text-lime-600 font-bold">ผ่านเกณฑ์โครงการ</span> ก่อน <span class="text-orange-500 font-bold">สำรอง</span> (เรียงตามคะแนนร้อยละ)</p>
+            <p class="text-sm text-gray-500">เกณฑ์: เรียงลำดับ <span class="text-lime-600 font-bold">ผ่านเกณฑ์โครงการ</span> ก่อน <span class="text-orange-500 font-bold">สำรอง</span></p>
             <div class="flex flex-wrap gap-2 mt-2">
                 ${tabs.map(t => `<button onclick="rankingTab='${t.id}';renderAdminDashboard();" class="px-4 py-2 rounded-xl text-sm font-bold transition-all border ${rankingTab===t.id ? 'bg-teal-500 text-white border-teal-500 shadow-lg shadow-teal-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}">${t.label}</button>`).join('')}
             </div>
         </div>
         
         <div class="flex gap-2">
-            <button onclick="exportRankingToExcel()" class="flex items-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg shadow-green-200 transition-all active:scale-95">
+            <button onclick="exportRankingToExcel()" class="flex items-center gap-2 px-3 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg shadow-green-200 transition-all active:scale-95 text-xs md:text-sm">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                 Excel
             </button>
-            <button onclick="exportToWord()" class="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-lime-500 to-green-600 hover:from-lime-600 hover:to-green-700 text-white rounded-xl font-bold shadow-lg shadow-lime-200/50 transition-all active:scale-95">
+            <button onclick="exportToWord()" class="flex items-center gap-2 px-3 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-200 transition-all active:scale-95 text-xs md:text-sm">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                Word (.doc)
+                Word
+            </button>
+            <button onclick="exportToPDF()" class="flex items-center gap-2 px-3 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-lg shadow-red-200 transition-all active:scale-95 text-xs md:text-sm">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                PDF
             </button>
         </div>
     </div>
@@ -1063,41 +1065,26 @@ function exportToWord() {
 
     let isFilteredMode = false;
     if (rankingTab === 'filtered' || (rankingTab !== 'all' && document.querySelector('button.bg-teal-500'))) {
-        if (adminTab === 'm1') {
-            activeData = activeData.filter(s => !['p4', 'p5'].includes(s.grade_level));
-        }
+        if (adminTab === 'm1') activeData = activeData.filter(s => !['p4', 'p5'].includes(s.grade_level));
         isFilteredMode = true;
     }
 
     const allocationResult = executeClearingHouse(activeData, quotas[adminTab]);
     let dataList = [];
-    let title = "";
-    let scoreTypeLabel = "";
+    let titleProgram = "";
 
     if (rankingTab === 'all' || rankingTab === 'filtered') {
-        dataList = [...activeData].sort((a,b) => b.total_score - a.total_score).map((s, i) => ({
-            ...s,
-            score_to_show: s.total_score,
-            status_text: allocationResult[s.__backendId] ? `ติด ${allocationResult[s.__backendId].program}` : 'ไม่ผ่านเกณฑ์'
-        }));
-        title = `ประกาศผลสอบห้องเรียนพิเศษ ${adminTab==='m1'?'ม.1':'ม.4'} - สรุปภาพรวม${isFilteredMode ? ' (คัดกรองแล้ว)' : ''}`;
-        scoreTypeLabel = "คะแนนรวม";
-
+        dataList = [...activeData].sort((a,b) => b.total_score - a.total_score).map((s, i) => ({...s, score_to_show: s.total_score}));
+        titleProgram = `สรุปภาพรวม ${isFilteredMode ? '(คัดกรอง)' : '(ทั้งหมด)'}`;
     } else {
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
-
-        const getChoiceRank = (student, prog) => {
-            if (student.choice_1 === prog) return 1;
-            if (student.choice_2 === prog) return 2;
-            if (student.choice_3 === prog) return 3;
-            return 99;
-        };
-
+        const getChoiceRank = (student, prog) => { if (student.choice_1 === prog) return 1; if (student.choice_2 === prog) return 2; if (student.choice_3 === prog) return 3; return 99; };
+        
         dataList = activeData.filter(s => {
             const targetRank = getChoiceRank(s, targetProgram);
             if (targetRank === 99) return false;
             const officialResult = allocationResult[s.__backendId];
-            if (officialResult && officialResult.program === targetProgram) return true; 
+            if (officialResult && officialResult.program === targetProgram) return true;
             const officialRank = officialResult ? getChoiceRank(s, officialResult.program) : 99;
             return targetRank < officialRank; 
         });
@@ -1105,26 +1092,15 @@ function exportToWord() {
         dataList = dataList.map(s => {
             const officialResult = allocationResult[s.__backendId];
             const isReal = officialResult && officialResult.program === targetProgram;
-            return {
-                ...s,
-                score_to_show: getWeightedScore(s, targetProgram),
-                is_real: isReal,
-                official_result: officialResult,
-                choice_priority: getChoiceRank(s, targetProgram)
-            };
+            return { ...s, score_to_show: getWeightedScore(s, targetProgram), is_real: isReal, official_result: officialResult, choice_priority: getChoiceRank(s, targetProgram) };
         });
 
         dataList.sort((a, b) => {
-            if (a.is_real && !b.is_real) return -1;
-            if (!a.is_real && b.is_real) return 1;
-            if (!a.is_real && !b.is_real) {
-                if (a.choice_priority !== b.choice_priority) return a.choice_priority - b.choice_priority;
-            }
+            if (a.is_real && !b.is_real) return -1; if (!a.is_real && b.is_real) return 1;
+            if (!a.is_real && !b.is_real) { if (a.choice_priority !== b.choice_priority) return a.choice_priority - b.choice_priority; }
             return b.score_to_show - a.score_to_show;
         });
-        
-        title = `ประกาศผลสอบห้องเรียนพิเศษ ${adminTab==='m1'?'ม.1':'ม.4'} - โครงการ ${targetProgram}`;
-        scoreTypeLabel = "คะแนนร้อยละ";
+        titleProgram = targetProgram;
     }
 
     if (dataList.length === 0) return showAlert('แจ้งเตือน', 'ไม่มีข้อมูลสำหรับออกรายงาน');
@@ -1133,30 +1109,10 @@ function exportToWord() {
     for (let i = 0; i < dataList.length; i++) {
         if (i > 0) {
             const scoreSame = Math.abs(dataList[i].score_to_show - dataList[i-1].score_to_show) < 0.00001;
-            const statusSame = (dataList[i].is_real === dataList[i-1].is_real);
-            const choiceSame = (dataList[i].choice_priority === dataList[i-1].choice_priority);
-
-            if (scoreSame && statusSame && choiceSame) {
-                dataList[i].rank = dataList[i-1].rank;
-            } else {
-                currentRank++;
-                dataList[i].rank = currentRank;
-            }
-        } else {
-            dataList[i].rank = 1;
-        }
-        
-        if (rankingTab !== 'all' && rankingTab !== 'filtered') {
-            if (dataList[i].is_real) {
-                // *** แก้ไขตรงนี้ ***
-                dataList[i].status_text = 'ผ่านเกณฑ์โครงการ';
-            } else {
-                const other = dataList[i].official_result;
-                let text = `สำรอง (เลือกอันดับ ${dataList[i].choice_priority})`;
-                if (other) text += ` ติด ${other.program}`;
-                dataList[i].status_text = text;
-            }
-        }
+            const statusSame = (rankingTab !== 'all' && rankingTab !== 'filtered') ? (dataList[i].is_real === dataList[i-1].is_real) : true;
+            if (scoreSame && statusSame) dataList[i].rank = dataList[i-1].rank;
+            else { currentRank++; dataList[i].rank = currentRank; }
+        } else { dataList[i].rank = 1; }
     }
 
     const tableRows = dataList.map(s => `
@@ -1164,55 +1120,42 @@ function exportToWord() {
             <td style="text-align:center;">${s.rank}</td>
             <td style="text-align:center;">${s.exam_id}</td>
             <td>${s.full_name}</td>
-            <td style="text-align:center;">${s.score_to_show.toFixed(2)}</td>
-            <td>${[s.choice_1, s.choice_2, (adminTab!=='m4'?s.choice_3:null)].filter(c=>c).map((c,i)=>`${i+1}. ${c}`).join('<br>')}</td>
-            <td style="text-align:center;">${s.status_text}</td>
+            <td>${s.previous_school || '-'}</td>
+            <td></td>
         </tr>
     `).join('');
 
     const docContent = `
         <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-        <head><meta charset='utf-8'><title>${title}</title>
+        <head><meta charset='utf-8'><title>${titleProgram}</title>
         <style>
             body { font-family: 'TH Sarabun New', 'Angsana New', sans-serif; font-size: 16pt; }
             table { border-collapse: collapse; width: 100%; margin-top: 10px; }
-            td, th { border: 1px solid #000; padding: 5px; vertical-align: top; }
+            td, th { border: 1px solid #000; padding: 5px; vertical-align: middle; }
             th { background-color: #f0f0f0; text-align: center; font-weight: bold; }
             .header { text-align: center; margin-bottom: 20px; }
         </style>
         </head><body>
         
         <div class="header">
-            <img src="https://img2.pic.in.th/pic/-69-1.png" width="80" height="auto"><br>
-            <b>ประกาศโรงเรียนบางสะพานวิทยา</b><br>
-            เรื่อง ผลการสอบคัดเลือกนักเรียนห้องเรียนพิเศษ ระดับชั้นมัธยมศึกษาปีที่ ${adminTab==='m1'?'๑':'๔'}<br>
-            ประจำปีการศึกษา ${window.elementSdk?.config?.admission_year || '๒๕๖๙'}<br>
-            <br>
-            (${title})
+            <img src="https://img2.pic.in.th/pic/d73e30e222a61a2282bfaff6919fa6ec.png" width="80" height="auto"><br>
+            <b>โรงเรียนบางสะพานวิทยา</b><br>
+            แบบลงชื่อผู้มีสิทธิ์สอบปฏิบัติ ห้องเรียนโครงการ ${titleProgram}<br>
+            การแข่งขันทักษะทางวิชาการเพชรราชพฤกษ์ ประจำปีการศึกษา 2569
         </div>
 
         <table>
             <thead>
                 <tr>
                     <th width="8%">ลำดับ</th>
-                    <th width="12%">เลขประจำตัวสอบ</th>
-                    <th width="25%">ชื่อ - สกุล</th>
-                    <th width="10%">${scoreTypeLabel}</th>
-                    <th width="25%">โครงการที่เลือก</th>
-                    <th width="20%">ผลการคัดเลือก</th>
+                    <th width="15%">เลขประจำตัวสอบ</th>
+                    <th width="35%">ชื่อ-นามสกุล</th>
+                    <th width="27%">โรงเรียน</th>
+                    <th width="15%">หมายเหตุ</th>
                 </tr>
             </thead>
             <tbody>${tableRows}</tbody>
         </table>
-
-        <table style="border:none; margin-top:50px;">
-            <tr style="border:none;">
-                <td style="border:none; text-align:center; padding-top:40px;">ลงชื่อ.........................................กรรมการ<br>(.........................................)</td>
-                <td style="border:none; text-align:center; padding-top:40px;">ลงชื่อ.........................................นายทะเบียน<br>(.........................................)</td>
-                <td style="border:none; text-align:center; padding-top:40px;">ลงชื่อ.........................................ผู้อำนวยการ<br>(.........................................)</td>
-            </tr>
-        </table>
-        
         </body></html>
     `;
 
@@ -1220,7 +1163,7 @@ function exportToWord() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${title}.doc`;
+    link.download = `${titleProgram}.doc`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1779,9 +1722,7 @@ function exportRankingToExcel() {
 
     let isFilteredMode = false;
     if (rankingTab === 'filtered' || (rankingTab !== 'all' && document.querySelector('button.bg-teal-500'))) {
-        if (adminTab === 'm1') {
-            activeData = activeData.filter(s => !['p4', 'p5'].includes(s.grade_level));
-        }
+        if (adminTab === 'm1') activeData = activeData.filter(s => !['p4', 'p5'].includes(s.grade_level));
         isFilteredMode = true;
     }
 
@@ -1791,27 +1732,19 @@ function exportRankingToExcel() {
 
     if (rankingTab === 'all' || rankingTab === 'filtered') {
         dataList = [...activeData].sort((a,b) => b.total_score - a.total_score).map((s, i) => ({
-            ...s,
-            score_to_show: s.total_score,
+            ...s, score_to_show: s.total_score,
             status_text: allocationResult[s.__backendId] ? `ติด ${allocationResult[s.__backendId].program}` : 'ไม่ผ่านเกณฑ์'
         }));
-        fileName = `ประกาศผลสอบ_${adminTab}_${isFilteredMode ? 'สรุปคัดกรอง' : 'RawData'}.xlsx`;
-
+        fileName = `ประกาศผล_${adminTab}_${isFilteredMode ? 'สรุป' : 'RawData'}.xlsx`;
     } else {
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
-
-        const getChoiceRank = (student, prog) => {
-            if (student.choice_1 === prog) return 1;
-            if (student.choice_2 === prog) return 2;
-            if (student.choice_3 === prog) return 3;
-            return 99;
-        };
-
+        const getChoiceRank = (student, prog) => { if (student.choice_1 === prog) return 1; if (student.choice_2 === prog) return 2; if (student.choice_3 === prog) return 3; return 99; };
+        
         dataList = activeData.filter(s => {
             const targetRank = getChoiceRank(s, targetProgram);
             if (targetRank === 99) return false;
             const officialResult = allocationResult[s.__backendId];
-            if (officialResult && officialResult.program === targetProgram) return true; 
+            if (officialResult && officialResult.program === targetProgram) return true;
             const officialRank = officialResult ? getChoiceRank(s, officialResult.program) : 99;
             return targetRank < officialRank; 
         });
@@ -1820,24 +1753,17 @@ function exportRankingToExcel() {
             const officialResult = allocationResult[s.__backendId];
             const isReal = officialResult && officialResult.program === targetProgram;
             return {
-                ...s,
-                score_to_show: getWeightedScore(s, targetProgram),
-                is_real: isReal,
-                official_result: officialResult,
-                choice_priority: getChoiceRank(s, targetProgram)
+                ...s, score_to_show: getWeightedScore(s, targetProgram),
+                is_real: isReal, official_result: officialResult, choice_priority: getChoiceRank(s, targetProgram)
             };
         });
 
         dataList.sort((a, b) => {
-            if (a.is_real && !b.is_real) return -1;
-            if (!a.is_real && b.is_real) return 1;
-            if (!a.is_real && !b.is_real) {
-                if (a.choice_priority !== b.choice_priority) return a.choice_priority - b.choice_priority;
-            }
+            if (a.is_real && !b.is_real) return -1; if (!a.is_real && b.is_real) return 1;
+            if (!a.is_real && !b.is_real) { if (a.choice_priority !== b.choice_priority) return a.choice_priority - b.choice_priority; }
             return b.score_to_show - a.score_to_show;
         });
-
-        fileName = `ประกาศผลสอบ_${adminTab}_${targetProgram}_(รวมสำรอง).xlsx`;
+        fileName = `ใบรายชื่อ_${adminTab}_${targetProgram}.xlsx`;
     }
 
     if (dataList.length === 0) return showAlert('แจ้งเตือน', 'ไม่มีข้อมูล');
@@ -1846,104 +1772,25 @@ function exportRankingToExcel() {
     for (let i = 0; i < dataList.length; i++) {
         if (i > 0) {
             const scoreSame = Math.abs(dataList[i].score_to_show - dataList[i-1].score_to_show) < 0.00001;
-            const statusSame = (dataList[i].is_real === dataList[i-1].is_real);
-            const choiceSame = (dataList[i].choice_priority === dataList[i-1].choice_priority);
-
-            if (scoreSame && statusSame && choiceSame) {
-                dataList[i].rank = dataList[i-1].rank;
-            } else {
-                currentRank++;
-                dataList[i].rank = currentRank;
-            }
-        } else {
-            dataList[i].rank = 1;
-        }
-        
-        if (rankingTab !== 'all' && rankingTab !== 'filtered') {
-            if (dataList[i].is_real) {
-                // *** แก้ไขตรงนี้ ***
-                dataList[i].status_text = 'ผ่านเกณฑ์โครงการ';
-            } else {
-                const other = dataList[i].official_result;
-                let text = `สำรอง (เลือกอันดับ ${dataList[i].choice_priority})`;
-                if (other) text += ` ติด ${other.program}`;
-                dataList[i].status_text = text;
-            }
-        }
+            const statusSame = (rankingTab !== 'all' && rankingTab !== 'filtered') ? (dataList[i].is_real === dataList[i-1].is_real) : true;
+            if (scoreSame && statusSame) dataList[i].rank = dataList[i-1].rank;
+            else { currentRank++; dataList[i].rank = currentRank; }
+        } else { dataList[i].rank = 1; }
     }
 
+    // --- Excel 5 คอลัมน์ (ใช้ full_name ตรงๆ) ---
     const excelRows = dataList.map(s => ({
-        'ลำดับที่': s.rank,
+        'ลำดับ': s.rank,
         'เลขประจำตัวสอบ': s.exam_id,
         'ชื่อ-นามสกุล': s.full_name,
-        'คะแนนที่ใช้คัดเลือก': s.score_to_show.toFixed(2),
-        'อันดับ 1': s.choice_1 || '-',
-        'อันดับ 2': s.choice_2 || '-',
-        'อันดับ 3': (adminTab === 'm1' ? s.choice_3 : '-') || '-',
-        'ผลการคัดเลือก': s.status_text
+        'โรงเรียน': s.previous_school || '-',
+        'หมายเหตุ': ''
     }));
 
     const ws = XLSX.utils.json_to_sheet(excelRows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Ranking");
+    XLSX.utils.book_append_sheet(wb, ws, "SignatureSheet");
     XLSX.writeFile(wb, fileName);
-}
-    
-// --- ฟังก์ชัน Export Excel สำหรับหน้าบันทึกคะแนนปฏิบัติ ---
-function exportInterviewToExcel() {
-    // 1. Logic ดึงข้อมูลเหมือนหน้าจอ Interview
-    const sortedForClearing = [...studentsData].sort((a,b) => (b.total_score||0) - (a.total_score||0));
-    const currentQuotas = { ...quotas[adminTab] };
-    const counts = {};
-    Object.keys(currentQuotas).forEach(k => counts[k] = 0);
-    const allocationResult = {}; 
-
-    sortedForClearing.forEach(s => {
-        let choices = adminTab === 'm4' ? [s.choice_1, s.choice_2].filter(c=>c) : [s.choice_1, s.choice_2, s.choice_3].filter(c=>c);
-        for (const choiceName of choices) {
-            if (currentQuotas[choiceName] !== undefined && counts[choiceName] < currentQuotas[choiceName]) {
-                allocationResult[s.__backendId] = choiceName;
-                counts[choiceName]++;
-                break;
-            }
-        }
-    });
-
-    const targetProgramName = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
-    const finalRoundQuota = 40;
-
-    let interviewList = studentsData.filter(s => allocationResult[s.__backendId] === targetProgramName);
-    interviewList = interviewList.map(s => {
-        const sci = parseFloat(s.science_score) || 0;
-        const math = parseFloat(s.math_score) || 0;
-        const eng = parseFloat(s.english_score) || 0;
-        const written = parseFloat(s.total_score) || 0;
-        const practical = parseFloat(s.practical_score) || 0;
-        return { 
-            ...s, sci, math, eng, written_score: written, 
-            practical_score: practical, grand_total: written + practical 
-        };
-    }).sort((a, b) => b.grand_total - a.grand_total);
-
-    // 2. แปลงข้อมูลเป็น Format Excel
-    const excelRows = interviewList.map((s, i) => ({
-        'ลำดับที่': i + 1,
-        'รหัสสอบ': s.exam_id,
-        'ชื่อ-สกุล': s.full_name,
-        'วิทย์': s.sci,
-        'คณิต': s.math,
-        'อังกฤษ': s.eng,
-        'รวมข้อเขียน': s.written_score,
-        'คะแนนปฏิบัติ': s.practical_score,
-        'รวมสุทธิ': s.grand_total,
-        'สถานะ': i < finalRoundQuota ? 'ตัวจริง' : `สำรอง ${i - finalRoundQuota + 1}`
-    }));
-
-    // 3. สร้างไฟล์
-    const ws = XLSX.utils.json_to_sheet(excelRows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Scores");
-    XLSX.writeFile(wb, `คะแนนสอบปฏิบัติ_${targetProgramName}_${adminTab}.xlsx`);
 }
 window.addEventListener('load', () => { window.dataSdk.init(dataHandler); render(); });
 // --- ฟังก์ชันย่อย 3: หน้าบันทึกคะแนนปฏิบัติ/สัมภาษณ์ (ฉบับปรับปรุง: สวยงาม + โชว์คะแนนดิบ + แก้บั๊กชื่อหาย) ---
