@@ -856,10 +856,10 @@ function executeClearingHouse(students, quotaConfig) {
 // --- ฟังก์ชันย่อย 2: แสดงหน้าจัดลำดับ (Ranking View) ---
 function renderRankingView(allStudents) {
     let processingData = allStudents;
-    let isFilteredMode = false; // ตัด ป.4-5
-    let isPretestMode = false;  // เฉพาะ ป.4-5
+    let isFilteredMode = false;
+    let isPretestMode = false;
 
-    // 1. ตรวจสอบโหมดการกรอง
+    // 1. ตรวจสอบโหมดการกรองข้อมูล
     if (rankingTab === 'filtered') {
         if (adminTab === 'm1') {
             processingData = allStudents.filter(s => !['p4', 'p5'].includes(s.grade_level));
@@ -879,7 +879,7 @@ function renderRankingView(allStudents) {
     let scoreLabel = "คะแนนรวม";
     let subScoreType = "(ดิบ)";
     
-    // ตั้งชื่อหัวข้อ
+    // ตั้งชื่อหัวข้อตาม Tab ที่เลือก
     let title = "จัดลำดับคะแนน (Raw Data)";
     if (isFilteredMode) title = "สรุปผลคัดเลือก (ตัด Pre-test)";
     if (isPretestMode) title = "สรุปคะแนน Pre-test (เฉพาะ ป.4-5)";
@@ -908,7 +908,7 @@ function renderRankingView(allStudents) {
     };
 
     if (rankingTab === 'all' || rankingTab === 'filtered' || rankingTab === 'pretest') {
-        // === ภาพรวม / Pre-test (แสดงคะแนนดิบ) ===
+        // === ภาพรวม / ตัดป.4-5 / Pre-test (แสดงคะแนนดิบ) ===
         scoreLabel = "คะแนนรวม (110)";
         subScoreType = "(ดิบ)";
 
@@ -1024,35 +1024,24 @@ function renderRankingView(allStudents) {
         }
     }
 
-    // --- สร้างปุ่ม Tabs (เพิ่มปุ่ม Pre-test สำหรับ ม.1) ---
+    // --- แก้ไขจุดนี้: กำหนด Tab แบบตายตัว (ไม่เปลี่ยนไปมาตามโหมด) ---
     let tabs = [];
     if (adminTab === 'm1') {
-        // ม.1
-        if (isFilteredMode) {
-            tabs = [
-                { id: 'filtered', label: 'สรุปภาพรวม (ตัด ป.4-5)' },
-                { id: 'pretest', label: 'เฉพาะ ป.4-5' }, // เพิ่มปุ่มนี้
-                { id: 'sm', label: 'S&M' }, { id: 'gate', label: 'GATE' }, { id: 'eis', label: 'EIS' }
-            ];
-        } else if (isPretestMode) {
-            tabs = [
-                { id: 'all', label: 'ทั้งหมด (Raw)' },
-                { id: 'filtered', label: 'ตัด ป.4-5' },
-                { id: 'pretest', label: 'เฉพาะ ป.4-5 (Active)' } // Active state
-            ];
-        } else {
-            tabs = [
-                { id: 'all', label: 'ทั้งหมด (Raw)' },
-                { id: 'filtered', label: 'ตัด ป.4-5' },
-                { id: 'pretest', label: 'เฉพาะ ป.4-5' }, // เพิ่มปุ่มนี้
-                { id: 'sm', label: 'S&M' }, { id: 'gate', label: 'GATE' }, { id: 'eis', label: 'EIS' }
-            ];
-        }
-    } else {
-        // ม.4 (ไม่มี Pre-test)
+        // ม.1 แสดงครบทุกปุ่มเสมอ
         tabs = [
             { id: 'all', label: 'ทั้งหมด (Raw)' },
-            { id: 'sme', label: 'SME' }, { id: 'gate', label: 'GATE' }
+            { id: 'filtered', label: 'ตัด ป.4-5' },
+            { id: 'pretest', label: 'เฉพาะ ป.4-5' },
+            { id: 'sm', label: 'S&M' },
+            { id: 'gate', label: 'GATE' },
+            { id: 'eis', label: 'EIS' }
+        ];
+    } else {
+        // ม.4
+        tabs = [
+            { id: 'all', label: 'ทั้งหมด (Raw)' },
+            { id: 'sme', label: 'SME' },
+            { id: 'gate', label: 'GATE' }
         ];
     }
 
@@ -1079,6 +1068,10 @@ function renderRankingView(allStudents) {
             <button onclick="exportToWord()" class="flex items-center gap-2 px-3 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-200 transition-all active:scale-95 text-xs md:text-sm">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                 Word
+            </button>
+            <button onclick="exportToPDF()" class="flex items-center gap-2 px-3 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-lg shadow-red-200 transition-all active:scale-95 text-xs md:text-sm">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                PDF
             </button>
         </div>
     </div>
