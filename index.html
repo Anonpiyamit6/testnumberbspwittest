@@ -689,65 +689,118 @@ function renderManageView(data, totalCount) {
     </div>`;
 }
 
+function getWeightedScore(student, program) {
+    // คะแนนดิบ (Raw Scores)
+    const sci = parseFloat(student.science_score) || 0;
+    const math = parseFloat(student.math_score) || 0;
+    const eng = parseFloat(student.english_score) || 0;
+
+    // โปรแกรม S&M (ม.1) หรือ SME (ม.4)
+    // วิทย์เต็ม 40->40 (x1), คณิตเต็ม 30->40 (x1.3333), อังกฤษเต็ม 40->20 (x0.5)
+    if (program === 'sm' || program === 'sme' || program === 'S&M' || program === 'SME') {
+        return (sci * 1.0) + (math * (40/30)) + (eng * 0.5);
+    }
+    
+    // โปรแกรม GATE
+    // วิทย์เต็ม 40->35 (x0.875), คณิตเต็ม 30->35 (x1.1666), อังกฤษเต็ม 40->30 (x0.75)
+    else if (program === 'gate' || program === 'GATE') {
+        return (sci * 0.875) + (math * (35/30)) + (eng * 0.75);
+    }
+    
+    // โปรแกรม EIS
+    // วิทย์เต็ม 40->30 (x0.75), คณิตเต็ม 30->30 (x1), อังกฤษเต็ม 40->40 (x1)
+    else if (program === 'eis' || program === 'EIS') {
+        return (sci * 0.75) + (math * 1.0) + (eng * 1.0);
+    }
+
+    // กรณีอื่นๆ (หรือดูภาพรวม) ให้ใช้คะแนนดิบรวม (เต็ม 110)
+    return (sci + math + eng); 
+}
+   
 // --- ฟังก์ชันย่อย 2: แสดงหน้าจัดลำดับ (Ranking View) ---
 // --- ฟังก์ชันย่อย 2: แสดงหน้าจัดลำดับ (Ranking View) ---
 function renderRankingView(allStudents) {
-    // 1. เรียงคะแนนรวมจากมากไปน้อย (สำหรับทุกคน)
-    const sortedAll = [...allStudents].sort((a,b) => b.total_score - a.total_score);
+    // 1. เรียงคะแนนรวมดิบ (Raw Score) ไว้ก่อน สำหรับใช้เป็นค่า Default ในหน้าภาพรวม
+    // (แต่เดี๋ยวเราจะเรียงใหม่ในแต่ละแท็บโครงการ)
+    const sortedByRaw = [...allStudents].sort((a,b) => b.total_score - a.total_score);
     
-    // 2. ประมวลผล Clearing House (ตัดโควตา)
+    // 2. Logic Clearing House (จำลองการตัดสิทธิ์เบื้องต้นด้วยคะแนนดิบไปก่อน)
+    // หมายเหตุ: ในระบบจริงถ้า Weights ต่างกัน การ Allocation จะซับซ้อนมาก 
+    // ในที่นี้จะใช้ "คะแนนร้อยละของอันดับ 1" เป็นตัวตัดสินหลักในภายหลัง
     const currentQuotas = { ...quotas[adminTab] };
     const counts = {};
     Object.keys(currentQuotas).forEach(k => counts[k] = 0);
     const allocationResult = {}; 
 
-    // วนลูปแจกโควตาตามลำดับคะแนน
-    sortedAll.forEach(s => {
+    // ใช้คะแนนดิบเป็นตัวรันคิวเบื้องต้น (First pass)
+    sortedByRaw.forEach(s => {
         let choices = adminTab === 'm4' ? [s.choice_1, s.choice_2] : [s.choice_1, s.choice_2, s.choice_3];
         choices = choices.filter(c => c); 
-        
         for (const choiceName of choices) {
-            // ถ้าโควตายังว่าง -> ให้สิทธิ์
             if (currentQuotas[choiceName] !== undefined && counts[choiceName] < currentQuotas[choiceName]) {
                 allocationResult[s.__backendId] = choiceName;
                 counts[choiceName]++;
-                break; // ได้ที่เรียนแล้ว จบการวนลูปคนนี้
+                break; 
             }
         }
     });
 
     let renderList = [];
     let showQuota = 0;
-    
+    let scoreLabel = "คะแนนรวม (110)"; // หัวตารางคะแนน
+
     if (rankingTab === 'all') {
-        // ============================================
-        // กรณี 1: แท็บ "สรุปภาพรวม" -> แสดงทุกคน (ไม่กรองออก)
-        // ============================================
-        renderList = sortedAll.map((s, i) => ({
+        // === กรณีดูภาพรวม ===
+        // ใช้คะแนนดิบในการแสดงผล
+        renderList = sortedByRaw.map((s, i) => ({
             ...s, 
-            rank: i + 1, // ลำดับที่ตามคะแนนดิบ (Global Rank)
-            status: allocationResult[s.__backendId] ? 'pass' : 'fail', // สถานะ ผ่าน/ไม่ผ่าน
-            got_program: allocationResult[s.__backendId] || '-' // ได้โครงการอะไร
+            rank: i + 1,
+            display_score: s.total_score, // โชว์คะแนนดิบ
+            status: allocationResult[s.__backendId] ? 'pass' : 'fail',
+            got_program: allocationResult[s.__backendId] || '-'
         }));
 
     } else {
-        // ============================================
-        // กรณี 2: แท็บ "แยกโครงการ" -> แสดงเฉพาะตัวจริง
-        // ============================================
+        // === กรณีดูแยกโครงการ (S&M, GATE, EIS) ===
+        // *** จุดสำคัญ: ต้องคำนวณคะแนนใหม่ และเรียงลำดับใหม่ ตามเกณฑ์โครงการนั้น ***
+        
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
         showQuota = (quotas[adminTab] && quotas[adminTab][targetProgram]) || 0;
+        scoreLabel = `คะแนนร้อยละ (${targetProgram})`;
 
-        renderList = sortedAll
-            .filter(s => allocationResult[s.__backendId] === targetProgram) // *** กรองเอาเฉพาะคนที่ได้สิทธิ์ ***
+        // 1. ดึงคนที่มีสิทธิ์ หรือ เลือกโครงการนี้
+        // (เพื่อให้เห็นลำดับจริงๆ เราจะดึงคนที่เลือกโครงการนี้มาเรียงคะแนนใหม่ทั้งหมดก่อน)
+        let candidates = allStudents.filter(s => {
+            // เอาคนที่เลือกโครงการนี้ (ไม่ว่าจะอันดับ 1, 2 หรือ 3)
+            return s.choice_1 === targetProgram || s.choice_2 === targetProgram || s.choice_3 === targetProgram;
+        });
+
+        // 2. คำนวณคะแนนร้อยละของโครงการนี้ ให้ทุกคน
+        candidates = candidates.map(s => {
+            const wScore = getWeightedScore(s, rankingTab); // คำนวณร้อยละ
+            return {
+                ...s,
+                weighted_score_temp: wScore
+            };
+        });
+
+        // 3. เรียงลำดับตามคะแนนร้อยละ (มาก -> น้อย)
+        candidates.sort((a, b) => b.weighted_score_temp - a.weighted_score_temp);
+
+        // 4. ตัดโควตา (เฉพาะคนที่ติดตัวจริง)
+        // หมายเหตุ: Logic นี้จะแสดง "Top N" ของโครงการนั้นๆ โดยวัดจากคะแนนร้อยละ
+        renderList = candidates
+            .slice(0, showQuota) // ตัดมาเฉพาะจำนวนรับ
             .map((s, i) => ({
                 ...s, 
-                rank: i + 1, // ลำดับที่ภายในโครงการ (1 ถึง โควตา)
+                rank: i + 1, // ลำดับตามคะแนนร้อยละ
+                display_score: s.weighted_score_temp, // โชว์คะแนนร้อยละ
                 status: 'pass'
             }));
     }
 
-    const tabsM1 = [{ id: 'all', label: 'สรุปภาพรวม (ทั้งหมด)' }, { id: 'sm', label: 'S&M (80)' }, { id: 'gate', label: 'GATE (60)' }, { id: 'eis', label: 'EIS (60)' }];
-    const tabsM4 = [{ id: 'all', label: 'สรุปภาพรวม (ทั้งหมด)' }, { id: 'sme', label: 'SME (80)' }, { id: 'gate', label: 'GATE (60)' }];
+    const tabsM1 = [{ id: 'all', label: 'สรุปภาพรวม (Raw)' }, { id: 'sm', label: 'S&M (%Weight)' }, { id: 'gate', label: 'GATE (%Weight)' }, { id: 'eis', label: 'EIS (%Weight)' }];
+    const tabsM4 = [{ id: 'all', label: 'สรุปภาพรวม (Raw)' }, { id: 'sme', label: 'SME (%Weight)' }, { id: 'gate', label: 'GATE (%Weight)' }];
     const currentTabs = adminTab === 'm1' ? tabsM1 : tabsM4;
 
     return `
@@ -773,7 +826,7 @@ function renderRankingView(allStudents) {
 
     <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100">
         <div class="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-            <h3 class="font-bold text-gray-700">${rankingTab === 'all' ? 'รายชื่อผู้เข้าสอบเรียงตามคะแนน (ทั้งหมด)' : 'รายชื่อผู้ผ่านการคัดเลือก (ตัวจริง)'}</h3>
+            <h3 class="font-bold text-gray-700">${rankingTab === 'all' ? 'รายชื่อผู้เข้าสอบ (เรียงตามคะแนนดิบ)' : 'รายชื่อตัวจริง (เรียงตามคะแนนร้อยละ)'}</h3>
             <div class="text-xs font-bold text-gray-400">จำนวน: ${renderList.length} คน ${rankingTab !== 'all' ? `/ ${showQuota}` : ''}</div>
         </div>
         <div class="overflow-x-auto">
@@ -782,9 +835,9 @@ function renderRankingView(allStudents) {
                     <tr>
                         <th class="px-6 py-3 w-20 text-center">ลำดับ</th>
                         <th class="px-6 py-3">รหัส-ชื่อสกุล</th>
-                        <th class="px-6 py-3 text-center">คะแนนรวม</th>
+                        <th class="px-6 py-3 text-center">${scoreLabel}</th>
                         <th class="px-6 py-3">โครงการที่เลือก</th>
-                        <th class="px-6 py-3 text-center">ผลการจัดสรร</th>
+                        <th class="px-6 py-3 text-center">สถานะ</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50 text-sm">
@@ -795,10 +848,10 @@ function renderRankingView(allStudents) {
                             <div class="font-bold text-gray-700">${s.exam_id}</div>
                             <div class="text-xs text-gray-500">${s.full_name}</div>
                         </td>
-                        <td class="px-6 py-4 text-center font-bold text-gray-700">${s.total_score.toFixed(2)}</td>
+                        <td class="px-6 py-4 text-center font-bold text-gray-700">${s.display_score.toFixed(2)}</td>
                         <td class="px-6 py-4 text-xs text-gray-500 space-y-1">
                             ${[s.choice_1, s.choice_2, (adminTab!=='m4'?s.choice_3:null)].filter(c=>c).map((c,i)=>`
-                                <div class="${s.got_program === c ? 'font-bold text-lime-600 underline':''}">${i+1}. ${c}</div>
+                                <div>${i+1}. ${c}</div>
                             `).join('')}
                         </td>
                         <td class="px-6 py-4 text-center">
@@ -816,7 +869,6 @@ function renderRankingView(allStudents) {
     </div>
     `;
 }
-
 // --- ฟังก์ชันส่งออกเป็นไฟล์ Word (.doc) พร้อมข้อความทางการ ---
 function exportToWord() {
     // 0. กรองข้อมูลเฉพาะระดับชั้นที่เลือก (สำคัญ: ป้องกันข้อมูลข้ามระดับชั้น)
@@ -1488,69 +1540,85 @@ function exportRankingToExcel() {
     const m4 = studentsData.filter(s => ['m3','m4'].includes(s.grade_level));
     const activeData = adminTab === 'm1' ? m1 : m4;
 
-    // 1. เรียงคะแนน
-    const sortedAll = [...activeData].sort((a,b) => b.total_score - a.total_score);
-    
-    // 2. Clearing House Logic
-    const currentQuotas = { ...quotas[adminTab] };
-    const counts = {};
-    Object.keys(currentQuotas).forEach(k => counts[k] = 0);
-    const allocationResult = {}; 
-
-    sortedAll.forEach(s => {
-        let choices = adminTab === 'm4' ? [s.choice_1, s.choice_2] : [s.choice_1, s.choice_2, s.choice_3];
-        choices = choices.filter(c=>c);
-        for (const choiceName of choices) {
-            if (currentQuotas[choiceName] !== undefined && counts[choiceName] < currentQuotas[choiceName]) {
-                allocationResult[s.__backendId] = choiceName;
-                counts[choiceName]++;
-                break;
-            }
-        }
-    });
-
     let dataList = [];
-    const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
+    let fileName = "";
 
-    // 3. เตรียมข้อมูล
     if (rankingTab === 'all') {
-        // *** กรณีภาพรวม Export หมดทุกคน (เหมือนหน้าจอ) ***
+        // === Export ภาพรวม (ใช้คะแนนดิบ) ===
+        // เรียงตามคะแนนดิบ
+        const sortedAll = [...activeData].sort((a,b) => b.total_score - a.total_score);
+        
+        // Clearing House Logic แบบเดิม (Raw Score)
+        const currentQuotas = { ...quotas[adminTab] };
+        const counts = {};
+        Object.keys(currentQuotas).forEach(k => counts[k] = 0);
+        const allocationResult = {}; 
+
+        sortedAll.forEach(s => {
+            let choices = adminTab === 'm4' ? [s.choice_1, s.choice_2] : [s.choice_1, s.choice_2, s.choice_3];
+            choices = choices.filter(c=>c);
+            for (const choiceName of choices) {
+                if (currentQuotas[choiceName] !== undefined && counts[choiceName] < currentQuotas[choiceName]) {
+                    allocationResult[s.__backendId] = choiceName;
+                    counts[choiceName]++;
+                    break;
+                }
+            }
+        });
+
         dataList = sortedAll.map((s, i) => ({
             ...s,
             rank: i + 1,
+            score_to_show: s.total_score,
             status_text: allocationResult[s.__backendId] ? `ติด ${allocationResult[s.__backendId]}` : 'ไม่ผ่านเกณฑ์'
         }));
+        fileName = `ประกาศผลสอบ_${adminTab}_ภาพรวม.xlsx`;
+
     } else {
-        // *** กรณีแยกโครงการ Export เฉพาะตัวจริง ***
-        dataList = sortedAll
-            .filter(s => allocationResult[s.__backendId] === targetProgram)
-            .map((s, i) => ({
-                ...s,
-                rank: i + 1,
-                status_text: 'ตัวจริง'
-            }));
+        // === Export แยกโครงการ (ใช้คะแนนร้อยละ) ===
+        const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
+        const showQuota = (quotas[adminTab] && quotas[adminTab][targetProgram]) || 0;
+
+        // 1. ดึงคนเลือกโครงการนี้
+        let candidates = activeData.filter(s => s.choice_1 === targetProgram || s.choice_2 === targetProgram || s.choice_3 === targetProgram);
+        
+        // 2. คำนวณร้อยละ
+        candidates = candidates.map(s => ({
+            ...s,
+            weighted_score: getWeightedScore(s, rankingTab)
+        }));
+
+        // 3. เรียงลำดับ
+        candidates.sort((a, b) => b.weighted_score - a.weighted_score);
+
+        // 4. ตัด Top N
+        dataList = candidates.slice(0, showQuota).map((s, i) => ({
+            ...s,
+            rank: i + 1,
+            score_to_show: s.weighted_score,
+            status_text: 'ตัวจริง'
+        }));
+        fileName = `ประกาศผลสอบ_${adminTab}_${targetProgram}_ตัวจริง.xlsx`;
     }
 
-    // 4. แปลงเป็น Excel Row
+    if (dataList.length === 0) return showAlert('แจ้งเตือน', 'ไม่มีข้อมูล');
+
+    // แปลงเป็น Excel
     const excelRows = dataList.map(s => ({
         'ลำดับที่': s.rank,
         'เลขประจำตัวสอบ': s.exam_id,
         'ชื่อ-นามสกุล': s.full_name,
-        'คะแนนรวม': s.total_score,
+        'คะแนนที่ใช้คัดเลือก': s.score_to_show.toFixed(2), // คะแนนดิบ หรือ ร้อยละ
         'อันดับ 1': s.choice_1 || '-',
         'อันดับ 2': s.choice_2 || '-',
         'อันดับ 3': (adminTab === 'm1' ? s.choice_3 : '-') || '-',
         'ผลการคัดเลือก': s.status_text
     }));
 
-    if (excelRows.length === 0) {
-        return showAlert('แจ้งเตือน', 'ไม่มีข้อมูลในหมวดนี้');
-    }
-
     const ws = XLSX.utils.json_to_sheet(excelRows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Ranking");
-    XLSX.writeFile(wb, `ประกาศผลสอบ_${adminTab}_${rankingTab}.xlsx`);
+    XLSX.writeFile(wb, fileName);
 }
     
 // --- ฟังก์ชัน Export Excel สำหรับหน้าบันทึกคะแนนปฏิบัติ ---
