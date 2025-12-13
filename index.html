@@ -619,49 +619,62 @@ function renderAdminDashboard() {
 }
 // --- ฟังก์ชันย่อย 1: แสดงหน้าจัดการข้อมูล (ตารางเดิม) ---
 function renderManageView(data, totalCount) {
+    if (!data || data.length === 0) {
+        return `
+        <div class="text-center py-20 bg-white rounded-3xl border border-gray-100 shadow-sm">
+            <div class="bg-gray-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
+                <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <p class="text-gray-400 font-bold text-lg">ไม่พบข้อมูลผู้สมัคร</p>
+            <p class="text-gray-300 text-sm">ลองค้นหาด้วยคำอื่น หรือเพิ่มข้อมูลใหม่</p>
+        </div>`;
+    }
+
     return `
-    <div class="flex flex-col md:flex-row justify-between md:items-end mb-6 gap-2">
-        <div><h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-1">จัดการข้อมูล ${adminTab==='m1'?'ม.1':'ม.4'}</h1><p class="text-gray-400 text-sm">ทั้งหมด <span class="font-bold text-lime-600">${totalCount}</span> คน</p></div>
-    </div>
-
-    <div class="bg-white p-2 rounded-2xl shadow-sm mb-6 flex gap-2">
-        <div class="relative flex-1"><input type="text" id="search-input" placeholder="ค้นหาชื่อ, รหัส..." class="w-full pl-10 pr-4 py-3 rounded-xl border-none bg-gray-50 focus:bg-white focus:ring-2 focus:ring-lime-100 transition-all text-gray-600" value="${searchQuery}" onkeydown="if(event.key==='Enter') triggerSearch()"><svg class="w-5 h-5 text-gray-400 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></div>
-        <button onclick="triggerSearch()" class="px-4 md:px-8 bg-lime-400 text-white rounded-xl font-bold shadow-lg shadow-lime-200">ค้นหา</button>
-        <button id="btn-bulk-delete" onclick="executeBulkDelete()" class="hidden px-4 md:px-6 bg-red-400 hover:bg-red-500 text-white rounded-xl font-bold shadow-lg shadow-red-200 transition-all flex items-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg><span class="hidden md:inline">ลบ (<span id="selected-count">0</span>)</span></button>
-    </div>
-
-    <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100">
+    <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
         <div class="overflow-x-auto">
-            <table class="w-full text-left min-w-[800px]">
-                <thead class="bg-gray-50 text-gray-600 text-sm uppercase font-bold">
-                    <tr>
-                        <th class="px-4 py-4 w-10 text-center"><input type="checkbox" onchange="toggleAllCheckboxes(this)" class="custom-checkbox rounded text-lime-500 focus:ring-lime-400"></th>
-                        <th class="px-4 py-4">รหัส</th>
-                        <th class="px-4 py-4">ชื่อ-สกุล</th>
-                        <th class="px-4 py-4 text-center">คะแนนรวม</th>
-                        <th class="px-4 py-4">เลือกอันดับ 1</th>
-                        <th class="px-4 py-4 text-center">จัดการ</th>
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-gray-50 text-gray-500 text-xs uppercase font-bold tracking-wider border-b border-gray-100">
+                        <th class="px-6 py-4 w-16 text-center">#</th>
+                        <th class="px-6 py-4">รหัสสอบ</th>
+                        <th class="px-6 py-4">เลขบัตร ปชช.</th>
+                        <th class="px-6 py-4">ชื่อ-สกุล</th>
+                        <th class="px-6 py-4 text-center">ระดับชั้น</th>
+                        <th class="px-6 py-4 text-center">จัดการ</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50 text-sm">
-                    ${data.map(s => `
-                    <tr class="hover:bg-gray-50 transition-colors">
-                        <td class="px-4 py-4 text-center"><input type="checkbox" value="${s.__backendId}" onchange="toggleCheckbox('${s.__backendId}')" class="row-checkbox custom-checkbox rounded text-lime-500 focus:ring-lime-400"></td>
-                        <td class="px-4 py-4 font-mono text-lime-600 font-bold">${s.exam_id}</td>
-                        <td class="px-4 py-4 font-medium text-gray-700 cursor-pointer hover:text-lime-600" onclick="showEditForm('${s.__backendId}')">${s.full_name}</td>
-                        <td class="px-4 py-4 text-center font-bold ${s.total_score>0?'text-amber-500':'text-gray-200'}">${s.total_score>0 ? s.total_score.toFixed(2) : '-'}</td>
-                        <td class="px-4 py-4 text-gray-500">${s.choice_1 || '-'}</td>
-                        <td class="px-4 py-4 text-center flex justify-center gap-2">
-                            <button onclick="showEditForm('${s.__backendId}')" class="text-lime-500 bg-lime-50 p-2 rounded-lg hover:bg-lime-100"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></button>
-                            <button onclick="deleteStudent('${s.__backendId}')" class="text-red-400 bg-red-50 p-2 rounded-lg hover:bg-red-100"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+                    ${data.map((s, i) => `
+                    <tr class="hover:bg-lime-50/30 transition-colors group" data-id="${s.__backendId}">
+                        <td class="px-6 py-4 text-center text-gray-400 font-bold">${i+1}</td>
+                        <td class="px-6 py-4 font-bold text-lime-700 font-mono">${s.exam_id}</td>
+                        <td class="px-6 py-4 text-gray-500 font-mono">${s.national_id || '-'}</td>
+                        <td class="px-6 py-4 font-bold text-gray-700">${s.full_name}</td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="px-3 py-1 rounded-full bg-gray-100 text-gray-600 font-bold text-xs uppercase border border-gray-200">${s.grade_level}</span>
                         </td>
-                    </tr>`).join('')}
+                        <td class="px-6 py-4 text-center">
+                            <div class="flex items-center justify-center gap-2">
+                                <button onclick="editStudent('${s.__backendId}')" class="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-all hover:scale-110 active:scale-95" title="แก้ไข">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                </button>
+                                <button onclick="deleteStudent('${s.__backendId}')" class="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all hover:scale-110 active:scale-95" title="ลบข้อมูล">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    `).join('')}
                 </tbody>
             </table>
         </div>
+        <div class="bg-gray-50 px-6 py-3 border-t border-gray-100 text-xs text-gray-400 flex justify-between">
+            <span>แสดง ${data.length} รายการ</span>
+            <span>จากทั้งหมด ${totalCount} รายการ</span>
+        </div>
     </div>`;
 }
-
 // --- ฟังก์ชันย่อย 2: แสดงหน้าจัดลำดับ (Ranking View) ---
 // --- ฟังก์ชันย่อย 2: แสดงหน้าจัดลำดับ (Ranking View) ---
 function renderRankingView(allStudents) {
@@ -1338,21 +1351,56 @@ function confirmExcelImport(type) {
     }
 }
 function deleteStudent(id) {
-    if(confirm('ยืนยันที่จะลบข้อมูลนี้? (ไม่สามารถกู้คืนได้)')) {
-        // หาปุ่มลบเพื่อเปลี่ยนสถานะ (Visual feedback)
-        const row = document.querySelector(`tr[data-id="${id}"]`);
-        if(row) row.style.opacity = '0.5';
+    if (!id || id === 'undefined') {
+        alert('เกิดข้อผิดพลาด: ไม่พบรหัสอ้างอิงข้อมูล (ID Error)');
+        return;
+    }
 
+    const student = studentsData.find(s => s.__backendId === id);
+    const name = student ? student.full_name : 'ข้อมูลนี้';
+
+    if(confirm(`คุณต้องการลบ "${name}" ใช่หรือไม่?\n(การกระทำนี้ไม่สามารถย้อนกลับได้)`)) {
+        
+        // Visual Feedback: ทำให้แถวจางลงเพื่อให้รู้ว่ากำลังลบ
+        const row = document.querySelector(`tr[data-id="${id}"]`);
+        if(row) row.style.opacity = '0.3';
+
+        // ส่งคำสั่งลบ
         window.dataSdk.delete(id).then(res => {
             if(res.isOk) {
-                // ลบออกจากตัวแปร memory ด้วย
+                // ลบสำเร็จ: เอาออกจาก Memory ทันที หน้าจอจะได้อัปเดตไวๆ
                 studentsData = studentsData.filter(s => s.__backendId !== id);
-                // รีเรนเดอร์หน้าจอทันที
+                
+                // ลบแถวออกจากตาราง
+                if(row) row.remove();
+                
+                // อัปเดตตัวเลขสถิติใหม่ (ถ้าจำเป็น)
                 if(typeof renderAdminDashboard === 'function') renderAdminDashboard();
+                
+                // แจ้งเตือนเล็กๆ
+                // alert('ลบข้อมูลเรียบร้อยแล้ว');
             } else {
-                alert('ลบไม่สำเร็จ: ' + res.error.message);
-                if(row) row.style.opacity = '1'; // คืนค่าถ้าลบพลาด
+                // ลบไม่สำเร็จ (เช่น Backend หาไม่เจอ)
+                alert('แจ้งเตือนจากระบบ: ' + res.error.message);
+                
+                // คืนค่าความจาง
+                if(row) row.style.opacity = '1';
+                
+                // *** สำคัญ ***
+                // ถ้า Backend บอกว่าไม่เจอ แสดงว่าหน้าจอเราข้อมูลไม่อัปเดต
+                // ให้รีโหลดข้อมูลใหม่จาก Server ทันที
+                if (res.error.message.includes('ไม่พบ') || res.error.message.includes('not found')) {
+                    alert('ระบบจะรีโหลดข้อมูลใหม่ เพื่อให้ข้อมูลเป็นปัจจุบัน...');
+                    showLoading('กำลังซิงค์ข้อมูลใหม่...');
+                    window.dataSdk.refresh().then(() => {
+                        hideLoading();
+                        renderAdminDashboard();
+                    });
+                }
             }
+        }).catch(err => {
+            alert('เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + err.message);
+            if(row) row.style.opacity = '1';
         });
     }
 }
