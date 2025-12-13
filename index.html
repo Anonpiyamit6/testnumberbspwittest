@@ -862,14 +862,13 @@ function renderRankingView(allStudents) {
     let isFilteredMode = false;
 
     if (rankingTab === 'filtered') {
-        // ถ้าเป็นโหมดนี้ ให้กรอง ป.4-5 ทิ้งทันที
         if (adminTab === 'm1') {
             processingData = allStudents.filter(s => !['p4', 'p5'].includes(s.grade_level));
         }
         isFilteredMode = true;
     }
 
-    // 2. ประมวลผล Clearing House ด้วยข้อมูลที่เลือกมา
+    // 2. ประมวลผล Clearing House
     const allocationResult = executeClearingHouse(processingData, quotas[adminTab]);
     
     let renderList = [];
@@ -938,18 +937,13 @@ function renderRankingView(allStudents) {
         }
     }
 
-    // สร้างปุ่ม Tabs ตามสถานะ
+    // สร้างปุ่ม Tabs
     let tabs = [];
     if (isFilteredMode) {
-        // ถ้าอยู่ในเมนูใหม่ (ตัด ป.4-5) ให้แสดงเฉพาะสรุปภาพรวม
         tabs = [{ id: 'filtered', label: 'สรุปภาพรวม (ตัด ป.4-5)' }];
-        
-        // เพิ่ม Tab ย่อยโครงการ ถ้าต้องการดูแยกรายโครงการแบบ Clean
         if(adminTab === 'm1') tabs.push({id:'sm', label:'S&M'}, {id:'gate', label:'GATE'}, {id:'eis', label:'EIS'});
         else tabs.push({id:'sme', label:'SME'}, {id:'gate', label:'GATE'});
-
     } else {
-        // เมนูเดิม (Raw Data)
         tabs = [{ id: 'all', label: 'ทั้งหมด (Raw)' }];
         if(adminTab === 'm1') tabs.push({id:'sm', label:'S&M'}, {id:'gate', label:'GATE'}, {id:'eis', label:'EIS'});
         else tabs.push({id:'sme', label:'SME'}, {id:'gate', label:'GATE'});
@@ -969,6 +963,11 @@ function renderRankingView(allStudents) {
             <button onclick="exportRankingToExcel()" class="flex items-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg shadow-green-200 transition-all active:scale-95">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                 Excel
+            </button>
+            
+            <button onclick="exportToWord()" class="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-lime-500 to-green-600 hover:from-lime-600 hover:to-green-700 text-white rounded-xl font-bold shadow-lg shadow-lime-200/50 transition-all active:scale-95">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Word (.doc)
             </button>
         </div>
     </div>
