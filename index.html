@@ -1566,12 +1566,33 @@ function showInterviewForm(id, maxScore, programName) {
     const s = studentsData.find(x => x.__backendId === id);
     if (!s) return;
 
-    const sci = parseFloat(s.science_score) || 0;
-    const math = parseFloat(s.math_score) || 0;
-    const eng = parseFloat(s.english_score) || 0;
+    // Helper: คำนวณคะแนนถ่วงน้ำหนัก
+    const getSubScore = (score, subject, program) => {
+        const val = parseFloat(score) || 0;
+        const p = program.toLowerCase();
+        if (p.includes('s&m') || p.includes('sme')) {
+            if (subject === 'sci') return val * 1.0;
+            if (subject === 'math') return val * (40/30);
+            if (subject === 'eng') return val * 0.5;
+        } else if (p.includes('gate')) {
+            if (subject === 'sci') return val * 0.875;
+            if (subject === 'math') return val * (35/30);
+            if (subject === 'eng') return val * 0.75;
+        } else if (p.includes('eis')) {
+            if (subject === 'sci') return val * 0.75;
+            if (subject === 'math') return val * 1.0;
+            if (subject === 'eng') return val * 1.0;
+        }
+        return val;
+    };
+
+    // คำนวณค่าที่จะแสดงใน Modal
+    const w_sci = getSubScore(s.science_score, 'sci', programName);
+    const w_math = getSubScore(s.math_score, 'math', programName);
+    const w_eng = getSubScore(s.english_score, 'eng', programName);
     
-    // *** แก้ไขตรงนี้: คำนวณคะแนนร้อยละตามโครงการ ***
-    const written = getWeightedScore(s, programName);
+    // คะแนนรวมข้อเขียน (ร้อยละ)
+    const written = w_sci + w_math + w_eng;
     
     const practical = parseFloat(s.practical_score) || 0;
 
@@ -1602,15 +1623,15 @@ function showInterviewForm(id, maxScore, programName) {
             </div>
 
             <div class="p-6 -mt-6 bg-white rounded-t-[2rem] relative z-20">
-                <div class="mb-2 text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">ผลคะแนนข้อเขียน (ดิบ)</div>
+                <div class="mb-2 text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">ผลคะแนน (คิดเป็นสัดส่วนร้อยละ)</div>
                 <div class="grid grid-cols-3 gap-3 mb-4">
-                    <div class="bg-blue-50 p-3 rounded-xl text-center border border-blue-100"><div class="text-xs text-blue-400 font-bold mb-1">วิทยาศาสตร์</div><div class="text-xl font-black text-blue-600">${sci}</div></div>
-                    <div class="bg-red-50 p-3 rounded-xl text-center border border-red-100"><div class="text-xs text-red-400 font-bold mb-1">คณิตศาสตร์</div><div class="text-xl font-black text-red-600">${math}</div></div>
-                    <div class="bg-purple-50 p-3 rounded-xl text-center border border-purple-100"><div class="text-xs text-purple-400 font-bold mb-1">ภาษาอังกฤษ</div><div class="text-xl font-black text-purple-600">${eng}</div></div>
+                    <div class="bg-blue-50 p-3 rounded-xl text-center border border-blue-100"><div class="text-xs text-blue-400 font-bold mb-1">วิทยาศาสตร์</div><div class="text-xl font-black text-blue-600">${w_sci.toFixed(2)}</div></div>
+                    <div class="bg-red-50 p-3 rounded-xl text-center border border-red-100"><div class="text-xs text-red-400 font-bold mb-1">คณิตศาสตร์</div><div class="text-xl font-black text-red-600">${w_math.toFixed(2)}</div></div>
+                    <div class="bg-purple-50 p-3 rounded-xl text-center border border-purple-100"><div class="text-xs text-purple-400 font-bold mb-1">ภาษาอังกฤษ</div><div class="text-xl font-black text-purple-600">${w_eng.toFixed(2)}</div></div>
                 </div>
 
                 <div class="bg-gray-50 rounded-xl p-4 border border-gray-200 flex justify-between items-center mb-6 shadow-inner">
-                    <span class="text-sm font-bold text-gray-500">คะแนนข้อเขียน (ร้อยละ)</span>
+                    <span class="text-sm font-bold text-gray-500">รวมข้อเขียน (100)</span>
                     <span class="text-3xl font-black text-lime-600">${written.toFixed(2)}</span>
                 </div>
 
@@ -1829,10 +1850,8 @@ window.addEventListener('load', () => { window.dataSdk.init(dataHandler); render
 // --- ฟังก์ชันย่อย 3: หน้าบันทึกคะแนนปฏิบัติ/สัมภาษณ์ (ฉบับปรับปรุง: สวยงาม + โชว์คะแนนดิบ + แก้บั๊กชื่อหาย) ---
 // --- ฟังก์ชันย่อย 3: หน้าตารางรายชื่อผู้มีสิทธิ์สอบปฏิบัติ (ธีมสีเขียว/ระบบหลัก) ---
 function renderInterviewView(allStudents) {
-    // 1. ประมวลผล Clearing House เพื่อหาคนที่มีสิทธิ์ในโครงการนี้
     const allocationResult = executeClearingHouse(allStudents, quotas[adminTab]);
     
-    // ตั้งค่า Tab เริ่มต้น (ถ้ายังไม่ได้เลือก)
     const availablePrograms = adminTab === 'm1' ? ['sm', 'gate', 'eis'] : ['sme', 'gate'];
     if (rankingTab === 'all' || rankingTab === 'filtered' || !availablePrograms.includes(rankingTab)) {
         rankingTab = availablePrograms[0];
@@ -1840,32 +1859,56 @@ function renderInterviewView(allStudents) {
 
     const targetProgramName = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
     const maxPractical = (targetProgramName === 'S&M' || targetProgramName === 'SME') ? 20 : 100;
-    const maxTotal = 100 + maxPractical; // ข้อเขียน(ร้อยละ 100) + ปฏิบัติ
+    const maxTotal = 100 + maxPractical;
     
-    // 2. ดึงรายชื่อเฉพาะคนที่ติดโครงการนี้ (จากผล Clearing House)
+    // Helper: ฟังก์ชันคำนวณคะแนนย่อยรายวิชา (Weighted Subject Score)
+    const getSubScore = (score, subject, program) => {
+        const s = parseFloat(score) || 0;
+        const p = program.toLowerCase();
+        // S&M / SME
+        if (p.includes('s&m') || p.includes('sme')) {
+            if (subject === 'sci') return s * 1.0;
+            if (subject === 'math') return s * (40/30); // 1.333...
+            if (subject === 'eng') return s * 0.5;
+        }
+        // GATE
+        else if (p.includes('gate')) {
+            if (subject === 'sci') return s * 0.875;
+            if (subject === 'math') return s * (35/30); // 1.166...
+            if (subject === 'eng') return s * 0.75;
+        }
+        // EIS
+        else if (p.includes('eis')) {
+            if (subject === 'sci') return s * 0.75;
+            if (subject === 'math') return s * 1.0;
+            if (subject === 'eng') return s * 1.0;
+        }
+        return s; // Default
+    };
+
     let interviewList = allStudents.filter(s => {
         const result = allocationResult[s.__backendId];
         return result && result.program === targetProgramName;
     });
 
-    // 3. คำนวณคะแนน (ใช้เกณฑ์ร้อยละของโครงการนั้นๆ)
     interviewList = interviewList.map(s => {
-        const sci = parseFloat(s.science_score) || 0;
-        const math = parseFloat(s.math_score) || 0;
-        const eng = parseFloat(s.english_score) || 0;
+        // *** คำนวณคะแนนรายวิชาแบบถ่วงน้ำหนัก ***
+        const w_sci = getSubScore(s.science_score, 'sci', targetProgramName);
+        const w_math = getSubScore(s.math_score, 'math', targetProgramName);
+        const w_eng = getSubScore(s.english_score, 'eng', targetProgramName);
         
-        // *** แก้ไขตรงนี้: ใช้ฟังก์ชัน getWeightedScore แทนคะแนนดิบรวม ***
-        const written = getWeightedScore(s, targetProgramName); 
+        // คะแนนรวมข้อเขียน (เอาคะแนนย่อยมารวมกัน จะได้เท่ากับ getWeightedScore พอดี)
+        const written = w_sci + w_math + w_eng;
         
         const practical = parseFloat(s.practical_score) || 0;
         return { 
             ...s, 
-            sci, math, eng, 
-            written_score: written, // คะแนนข้อเขียนจะเป็นคะแนนร้อยละตามสูตร
+            w_sci, w_math, w_eng, // ส่งค่าคะแนนถ่วงน้ำหนักออกไปแสดง
+            written_score: written,
             practical_score: practical, 
             grand_total: written + practical 
         };
-    }).sort((a, b) => b.grand_total - a.grand_total); // เรียงตามคะแนนรวมสุทธิ
+    }).sort((a, b) => b.grand_total - a.grand_total);
 
     const tabs = adminTab === 'm1' 
         ? [{ id: 'sm', label: 'S&M' }, { id: 'gate', label: 'GATE' }, { id: 'eis', label: 'EIS' }]
@@ -1875,7 +1918,7 @@ function renderInterviewView(allStudents) {
     <div class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
             <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">บันทึกคะแนนปฏิบัติ ${adminTab==='m1'?'ม.1':'ม.4'}</h1>
-            <p class="text-sm text-gray-500">คะแนนข้อเขียนคำนวณตามเกณฑ์ <span class="font-bold text-lime-600">ร้อยละ (Weighted Score)</span> ของแต่ละโครงการ</p>
+            <p class="text-sm text-gray-500">แสดงคะแนนรายวิชาแบบ <span class="font-bold text-lime-600">ถ่วงน้ำหนัก (Weighted Score)</span> ตามเกณฑ์โครงการ</p>
             <div class="flex flex-wrap gap-2 mt-2">
                 ${tabs.map(t => `<button onclick="rankingTab='${t.id}';renderAdminDashboard();" class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border shadow-sm ${rankingTab===t.id ? 'bg-lime-500 text-white border-lime-500 shadow-lg shadow-lime-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}">${t.label}</button>`).join('')}
             </div>
@@ -1908,10 +1951,10 @@ function renderInterviewView(allStudents) {
                     <tr class="bg-gray-50 text-gray-500 text-xs uppercase font-bold tracking-wider">
                         <th class="px-4 py-4 w-12 text-center border-b border-gray-100">ที่</th>
                         <th class="px-4 py-4 border-b border-gray-100">ผู้เข้าสอบ</th>
-                        <th class="px-2 py-4 text-center border-b border-gray-100 text-blue-500">วิทย์</th>
-                        <th class="px-2 py-4 text-center border-b border-gray-100 text-red-500">คณิต</th>
-                        <th class="px-2 py-4 text-center border-b border-gray-100 text-purple-500">อังกฤษ</th>
-                        <th class="px-4 py-4 text-center border-b border-gray-100 bg-gray-50">คะแนนข้อเขียน<br>(ร้อยละ)</th>
+                        <th class="px-2 py-4 text-center border-b border-gray-100 text-blue-500">วิทย์<br><span class="text-[10px] opacity-70">(Weight)</span></th>
+                        <th class="px-2 py-4 text-center border-b border-gray-100 text-red-500">คณิต<br><span class="text-[10px] opacity-70">(Weight)</span></th>
+                        <th class="px-2 py-4 text-center border-b border-gray-100 text-purple-500">อังกฤษ<br><span class="text-[10px] opacity-70">(Weight)</span></th>
+                        <th class="px-4 py-4 text-center border-b border-gray-100 bg-gray-50">รวมข้อเขียน<br>(100)</th>
                         <th class="px-4 py-4 text-center border-b border-lime-100 bg-lime-50 text-lime-700">คะแนนปฏิบัติ<br>(เต็ม ${maxPractical})</th>
                         <th class="px-4 py-4 text-center border-b border-gray-100">รวมสุทธิ<br>(เต็ม ${maxTotal})</th>
                         <th class="px-4 py-4 text-center border-b border-gray-100">จัดการ</th>
@@ -1925,9 +1968,9 @@ function renderInterviewView(allStudents) {
                             <div class="font-bold text-gray-800">${s.full_name}</div>
                             <div class="text-xs text-gray-400 font-mono mt-0.5">${s.exam_id}</div>
                         </td>
-                        <td class="px-2 py-4 text-center font-medium text-gray-500">${s.sci}</td>
-                        <td class="px-2 py-4 text-center font-medium text-gray-500">${s.math}</td>
-                        <td class="px-2 py-4 text-center font-medium text-gray-500">${s.eng}</td>
+                        <td class="px-2 py-4 text-center font-medium text-gray-500">${s.w_sci.toFixed(2)}</td>
+                        <td class="px-2 py-4 text-center font-medium text-gray-500">${s.w_math.toFixed(2)}</td>
+                        <td class="px-2 py-4 text-center font-medium text-gray-500">${s.w_eng.toFixed(2)}</td>
                         <td class="px-4 py-4 text-center font-bold text-gray-700 bg-gray-50 group-hover:bg-lime-50/20 text-lg">${s.written_score.toFixed(2)}</td>
                         <td class="px-4 py-4 text-center font-bold text-lime-700 bg-lime-50/20">${s.practical_score > 0 ? s.practical_score.toFixed(2) : '-'}</td>
                         <td class="px-4 py-4 text-center font-black text-gray-800 text-lg">${s.grand_total.toFixed(2)}</td>
