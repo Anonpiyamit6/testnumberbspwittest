@@ -1085,11 +1085,9 @@ function handleSingleSubmit(e) {
         grade_level: document.getElementById('form-grade').value,
         full_name: document.getElementById('form-name').value,
         previous_school: document.getElementById('form-school').value,
-        // -- เพิ่มส่วนบันทึกข้อมูลโครงการ --
         choice_1: document.getElementById('form-choice-1').value,
         choice_2: document.getElementById('form-choice-2').value,
         choice_3: document.getElementById('form-choice-3').value,
-        // -----------------------------
         thai_score: scores[0],
         math_score: scores[1],
         science_score: scores[2],
@@ -1099,161 +1097,41 @@ function handleSingleSubmit(e) {
     };
     
     showLoading('กำลังบันทึก...');
-    const action = formMode === 'create' ? window.dataSdk.create(data) : (data.__backendId = document.getElementById('student-backend-id').value, window.dataSdk.update(data));
+    
+    const action = formMode === 'create' 
+        ? window.dataSdk.create(data) 
+        : (data.__backendId = document.getElementById('student-backend-id').value, window.dataSdk.update(data));
     
     action.then(res => {
         setTimeout(() => {
             hideLoading();
             if(res.isOk) {
                 closeModal();
-                showAlert('สำเร็จ', 'บันทึกเรียบร้อย');
+                showAlert('สำเร็จ', 'บันทึกข้อมูลเรียบร้อย');
+                // รีเฟรชหน้าจอถ้าจำเป็น (sdk.refresh ทำให้อยู่แล้ว แต่เผื่อไว้)
             } else {
                 showAlert('ผิดพลาด', res.error.message);
             }
         }, 500);
     });
 }
+function triggerSearch() { searchQuery = document.getElementById('search-input').value.trim(); renderAdminDashboard(); }
 function addMultipleRow() { const tr = document.createElement('tr'); tr.className = 'bg-white border-b hover:bg-gray-50'; tr.innerHTML = `<td class="p-2"><input type="text" class="w-full border rounded px-2 py-1 multi-national-id text-xs" placeholder="บัตรฯ"></td><td class="p-2"><input type="text" class="w-full border rounded px-2 py-1 multi-exam-id text-xs" placeholder="รหัส"></td><td class="p-2"><input type="text" class="w-full border rounded px-2 py-1 multi-name text-xs" placeholder="ชื่อ"></td><td class="p-2"><select class="w-full border rounded px-2 py-1 multi-grade text-xs"><option value="p6">ป.6</option><option value="p5">ป.5</option><option value="p4">ป.4</option><option value="m3">ม.3</option></select></td><td class="p-2"><input type="text" class="w-full border rounded px-2 py-1 multi-school text-xs" placeholder="รร."></td><td class="p-2 text-center"><button type="button" onclick="this.closest('tr').remove()" class="text-red-500 font-bold">x</button></td>`; document.getElementById('multiple-tbody').appendChild(tr); }
 function handleMultipleSubmit() { const rows = document.querySelectorAll('#multiple-tbody tr'); const bulkData = []; rows.forEach(row => { const nid = row.querySelector('.multi-national-id').value.trim(); const id = row.querySelector('.multi-exam-id').value.trim(); const name = row.querySelector('.multi-name').value.trim(); if(id && name) bulkData.push({ exam_id: id, national_id: nid, full_name: name, grade_level: row.querySelector('.multi-grade').value, previous_school: row.querySelector('.multi-school').value.trim(), thai_score:0, math_score:0, science_score:0, english_score:0, aptitude_score:0, total_score:0, rank:0 }); }); if(bulkData.length === 0) return showAlert('แจ้งเตือน', 'กรุณากรอกข้อมูลอย่างน้อย 1 รายการ'); showConfirm('ยืนยัน', `เพิ่ม ${bulkData.length} รายการ?`, () => { showLoading('กำลังบันทึก...'); window.dataSdk.createBulk(bulkData).then(res => { setTimeout(() => { hideLoading(); if(res.isOk) { closeModal(); showAlert('สำเร็จ', 'บันทึกเรียบร้อย'); } else { showAlert('ผิดพลาด', res.error.message); } }, 500); }); }); }
-function handleExcelUpload(input, type) {
-    if(!input.files[0]) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const workbook = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
-        const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {header: 1, raw: false, defval: ""});
-        
-        if(type === 'student') {
-            // ... (โค้ดเดิม) ...
-            excelDataCache = [];
-            for(let i=1; i<jsonData.length; i++) {
-                const row = jsonData[i];
-                if(row[0] && row[2]) {
-                    excelDataCache.push({
-                        exam_id: String(row[0]),
-                        national_id: String(row[1]||''),
-                        full_name: String(row[2]),
-                        grade_level: String(row[3]||'m3').toLowerCase(),
-                        previous_school: String(row[4]||''),
-                        choice_1: String(row[5]||'').trim(),
-                        choice_2: String(row[6]||'').trim(),
-                        choice_3: String(row[7]||'').trim(),
-                        thai_score:0, math_score:0, science_score:0, english_score:0, aptitude_score:0, total_score:0, rank:0, practical_score:0
-                    });
-                }
-            }
-            document.getElementById('excel-count').textContent = excelDataCache.length;
-            document.getElementById('excel-preview-area').classList.remove('hidden');
-            document.getElementById('excel-preview-table').innerHTML = 
-                `<thead><tr class="bg-gray-100"><th>รหัส</th><th>ชื่อ</th><th>เลือก 1</th></tr></thead><tbody>` + 
-                excelDataCache.slice(0,5).map(p=>`<tr><td>${p.exam_id}</td><td>${p.full_name}</td><td>${p.choice_1}</td></tr>`).join('') + 
-                `</tbody>`;
-        
-        } else if(type === 'score') {
-            // ... (โค้ดเดิม) ...
-            scoreDataCache = [];
-            for(let i=1; i<jsonData.length; i++) {
-                const row = jsonData[i];
-                if(row[0]) scoreDataCache.push({ exam_id: String(row[0]), science_score: row[1]||0, math_score: row[2]||0, english_score: row[3]||0 });
-            }
-            document.getElementById('score-count').textContent = scoreDataCache.length;
-            document.getElementById('score-preview-area').classList.remove('hidden');
-            document.getElementById('score-preview-table').innerHTML = `<thead><tr class="bg-gray-100"><th>รหัส</th><th>วิทย์</th><th>คณิต</th><th>อังกฤษ</th></tr></thead><tbody>` + scoreDataCache.slice(0,5).map(p=>`<tr><td>${p.exam_id}</td><td>${p.science_score}</td><td>${p.math_score}</td><td>${p.english_score}</td></tr>`).join('') + `</tbody>`;
-        
-        } else if (type === 'practical') {
-            // >>> ส่วนที่เพิ่มใหม่สำหรับคะแนนปฏิบัติ <<<
-            practicalDataCache = [];
-            for(let i=1; i<jsonData.length; i++) {
-                const row = jsonData[i];
-                const examId = String(row[0]).trim();
-                const score = parseFloat(row[1]);
+function handleExcelUpload(input, type) { if(!input.files[0]) return; const reader = new FileReader(); reader.onload = (e) => { const workbook = XLSX.read(new Uint8Array(e.target.result), {type: 'array'}); const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {header: 1, raw: false, defval: ""}); if(type === 'student') { excelDataCache = []; for(let i=1; i<jsonData.length; i++) { const row = jsonData[i]; if(row[0] && row[2]) { excelDataCache.push({ exam_id: String(row[0]), national_id: String(row[1]||''), full_name: String(row[2]), grade_level: String(row[3]||'m3').toLowerCase(), previous_school: String(row[4]||''), choice_1: String(row[5]||'').trim(), choice_2: String(row[6]||'').trim(), choice_3: String(row[7]||'').trim(), thai_score:0, math_score:0, science_score:0, english_score:0, aptitude_score:0, total_score:0, rank:0, practical_score:0 }); } } document.getElementById('excel-count').textContent = excelDataCache.length; document.getElementById('excel-preview-area').classList.remove('hidden'); document.getElementById('excel-preview-table').innerHTML = `<thead><tr class="bg-gray-100"><th>รหัส</th><th>ชื่อ</th><th>เลือก 1</th></tr></thead><tbody>` + excelDataCache.slice(0,5).map(p=>`<tr><td>${p.exam_id}</td><td>${p.full_name}</td><td>${p.choice_1}</td></tr>`).join('') + `</tbody>`; } else if(type === 'score') { scoreDataCache = []; for(let i=1; i<jsonData.length; i++) { const row = jsonData[i]; if(row[0]) scoreDataCache.push({ exam_id: String(row[0]), science_score: row[1]||0, math_score: row[2]||0, english_score: row[3]||0 }); } document.getElementById('score-count').textContent = scoreDataCache.length; document.getElementById('score-preview-area').classList.remove('hidden'); document.getElementById('score-preview-table').innerHTML = `<thead><tr class="bg-gray-100"><th>รหัส</th><th>วิทย์</th><th>คณิต</th><th>อังกฤษ</th></tr></thead><tbody>` + scoreDataCache.slice(0,5).map(p=>`<tr><td>${p.exam_id}</td><td>${p.science_score}</td><td>${p.math_score}</td><td>${p.english_score}</td></tr>`).join('') + `</tbody>`; } else if (type === 'practical') { practicalDataCache = []; for(let i=1; i<jsonData.length; i++) { const row = jsonData[i]; const examId = String(row[0]).trim(); const score = parseFloat(row[1]); const student = studentsData.find(s => String(s.exam_id) === examId); if(examId && !isNaN(score) && student) { practicalDataCache.push({ __backendId: student.__backendId, exam_id: examId, full_name: student.full_name, practical_score: score, original_data: student }); } } document.getElementById('practical-count').textContent = practicalDataCache.length; document.getElementById('practical-preview-area').classList.remove('hidden'); document.getElementById('practical-preview-table').innerHTML = `<thead><tr class="bg-indigo-50 text-indigo-900"><th>รหัส</th><th>ชื่อ</th><th>คะแนนปฏิบัติ</th></tr></thead><tbody>` + practicalDataCache.slice(0,5).map(p=>`<tr><td>${p.exam_id}</td><td>${p.full_name}</td><td class="font-bold text-indigo-700">${p.practical_score}</td></tr>`).join('') + `</tbody>`; } }; reader.readAsArrayBuffer(input.files[0]); }
+function confirmExcelImport(type) { if(type === 'student' && excelDataCache.length > 0) { showConfirm('ยืนยัน', `นำเข้า ${excelDataCache.length} รายการ?`, () => { showLoading('กำลังนำเข้า...'); window.dataSdk.createBulk(excelDataCache).then(res => { setTimeout(() => { hideLoading(); if(res.isOk) { closeModal(); showAlert('สำเร็จ', 'เรียบร้อย'); } else { showAlert('ผิดพลาด', res.error.message); } }, 500); }); }); } else if(type === 'score' && scoreDataCache.length > 0) { showConfirm('ยืนยัน', `อัปเดตคะแนน ${scoreDataCache.length} รายการ?`, () => { showLoading('กำลังอัปเดตคะแนน...'); window.dataSdk.updateScoresBulk(scoreDataCache).then(res => { setTimeout(() => { hideLoading(); if(res.isOk) { closeModal(); showAlert('สำเร็จ', res.message); } else { showAlert('ผิดพลาด', res.error.message); } }, 500); }); }); } else if (type === 'practical' && practicalDataCache.length > 0) { showConfirm('ยืนยัน', `นำเข้าคะแนนปฏิบัติ ${practicalDataCache.length} รายการ?`, () => { showLoading('กำลังบันทึกคะแนนปฏิบัติ...'); const updates = practicalDataCache.map(item => ({ ...item.original_data, practical_score: item.practical_score })); const promises = updates.map(u => window.dataSdk.update(u)); Promise.all(promises).then(() => { setTimeout(() => { hideLoading(); closeModal(); showAlert('สำเร็จ', 'บันทึกคะแนนปฏิบัติเรียบร้อยแล้ว'); window.dataSdk.refresh().then(() => renderAdminDashboard()); }, 1500); }).catch(err => { hideLoading(); showAlert('ผิดพลาด', 'เกิดข้อผิดพลาด: ' + err.message); }); }); } }
 
-                // ตรวจสอบว่ามีรหัสนี้ในระบบจริงไหม
-                const student = studentsData.find(s => String(s.exam_id) === examId);
-                
-                if(examId && !isNaN(score) && student) {
-                    practicalDataCache.push({ 
-                        __backendId: student.__backendId, // เก็บ ID จริงไว้ใช้อัปเดต
-                        exam_id: examId, 
-                        full_name: student.full_name,
-                        practical_score: score,
-                        original_data: student // เก็บข้อมูลเดิมไว้กันเหนียว
-                    });
-                }
-            }
-            document.getElementById('practical-count').textContent = practicalDataCache.length;
-            document.getElementById('practical-preview-area').classList.remove('hidden');
-            document.getElementById('practical-preview-table').innerHTML = 
-                `<thead><tr class="bg-indigo-50 text-indigo-900"><th>รหัส</th><th>ชื่อ</th><th>คะแนนปฏิบัติ</th></tr></thead><tbody>` + 
-                practicalDataCache.slice(0,5).map(p=>`<tr><td>${p.exam_id}</td><td>${p.full_name}</td><td class="font-bold text-indigo-700">${p.practical_score}</td></tr>`).join('') + 
-                `</tbody>`;
-        }
-    };
-    reader.readAsArrayBuffer(input.files[0]);
-}
-function confirmExcelImport(type) { 
-    if(type === 'student' && excelDataCache.length > 0) { 
-        showConfirm('ยืนยัน', `นำเข้า ${excelDataCache.length} รายการ?`, () => { 
-            showLoading('กำลังนำเข้า...'); 
-            window.dataSdk.createBulk(excelDataCache).then(res => { 
-                setTimeout(() => { 
-                    hideLoading(); 
-                    if(res.isOk) { closeModal(); showAlert('สำเร็จ', 'เรียบร้อย'); } 
-                    else { showAlert('ผิดพลาด', res.error.message); } 
-                }, 500); 
-            }); 
-        }); 
-    } else if(type === 'score' && scoreDataCache.length > 0) { 
-        showConfirm('ยืนยัน', `อัปเดตคะแนน ${scoreDataCache.length} รายการ?`, () => { 
-            showLoading('กำลังอัปเดตคะแนน...'); 
-            window.dataSdk.updateScoresBulk(scoreDataCache).then(res => { 
-                setTimeout(() => { 
-                    hideLoading(); 
-                    if(res.isOk) { closeModal(); showAlert('สำเร็จ', res.message); } 
-                    else { showAlert('ผิดพลาด', res.error.message); } 
-                }, 500); 
-            }); 
-        }); 
-    } else if (type === 'practical' && practicalDataCache.length > 0) {
-        // >>> ส่วนที่เพิ่มใหม่ <<<
-        showConfirm('ยืนยัน', `นำเข้าคะแนนปฏิบัติ ${practicalDataCache.length} รายการ?`, () => {
-            showLoading('กำลังบันทึกคะแนนปฏิบัติ... (ห้ามปิดหน้าจอ)');
-            
-            // เตรียมข้อมูลสำหรับส่ง (Merge ข้อมูลเดิม + คะแนนใหม่)
-            const updates = practicalDataCache.map(item => ({
-                ...item.original_data, // เอาข้อมูลเดิมทั้งหมด
-                practical_score: item.practical_score // ทับด้วยคะแนนใหม่
-            }));
-
-            // ใช้ Promise.all ยิง update ทีละคน (ปลอดภัยสุด)
-            const promises = updates.map(u => window.dataSdk.update(u));
-
-            Promise.all(promises)
-                .then(() => {
-                    setTimeout(() => {
-                        hideLoading();
-                        closeModal();
-                        showAlert('สำเร็จ', 'บันทึกคะแนนปฏิบัติเรียบร้อยแล้ว');
-                        window.dataSdk.refresh().then(() => renderAdminDashboard());
-                    }, 1500);
-                })
-                .catch(err => {
-                    hideLoading();
-                    showAlert('ผิดพลาด', 'เกิดข้อผิดพลาด: ' + err.message);
-                });
-        });
-    }
-}
 function deleteStudent(id) { 
-    showConfirm('ยืนยันลบ', 'ลบข้อมูลนี้หรือไม่?', () => { 
+    showConfirm('ยืนยันลบ', 'ต้องการลบข้อมูลนี้หรือไม่?', () => { 
         showLoading('กำลังลบ...'); 
         window.dataSdk.delete({__backendId: id}).then(res => { 
             setTimeout(() => { 
                 hideLoading(); 
                 if(res.isOk) {
-                    // ลบข้อมูลในตัวแปรด้วย เพื่อให้หายไปจากหน้าจอทันที
+                    // อัปเดตข้อมูลในตัวแปร local ทันทีเพื่อให้หน้าจอตอบสนองเร็ว
                     studentsData = studentsData.filter(s => s.__backendId !== id);
-                    showAlert('สำเร็จ', 'ลบเรียบร้อย');
                     renderAdminDashboard();
+                    showAlert('สำเร็จ', 'ลบข้อมูลเรียบร้อย'); 
                 } else { 
                     showAlert('ผิดพลาด', res.error.message); 
                 } 
@@ -1263,11 +1141,9 @@ function deleteStudent(id) {
 }
 // --- ฟังก์ชันเปิด Modal ให้คะแนนรายบุคคล ---
 function showInterviewForm(id, maxScore, programName) {
-    const s = studentsData.find(x => x.__backendId === id);
-    if (!s) return;
+    const s = studentsData.find(x => x.__backendId === id); if (!s) return;
     const written = parseFloat(s.total_score) || 0;
     const practical = parseFloat(s.practical_score) || 0;
-
     const modalHtml = `
     <div id="interview-modal" class="fixed inset-0 flex items-center justify-center z-[150] animate-fade-in px-4">
         <style>#input-score-modal::-webkit-outer-spin-button,#input-score-modal::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}#input-score-modal{-moz-appearance:textfield}</style>
@@ -1288,42 +1164,20 @@ function showInterviewForm(id, maxScore, programName) {
     const div = document.createElement('div'); div.id = 'temp-interview-modal-wrapper'; div.innerHTML = modalHtml; document.body.appendChild(div);
     setTimeout(() => document.getElementById('input-score-modal').focus(), 100);
 }
-function closeInterviewModal() {
-    const el = document.getElementById('temp-interview-modal-wrapper');
-    if (el) el.remove();
-}
-
+function closeInterviewModal() { const el = document.getElementById('temp-interview-modal-wrapper'); if (el) el.remove(); }
 function saveSingleInterviewScore(id, maxScore) {
     const input = document.getElementById('input-score-modal');
     let score = parseFloat(input.value);
-    if (isNaN(score)) score = 0;
-    if (score < 0) score = 0;
-    if (score > maxScore) { alert(`คะแนนห้ามเกิน ${maxScore} คะแนน`); return; }
-
-    const studentIndex = studentsData.findIndex(s => s.__backendId === id);
-    if (studentIndex === -1) return;
-
-    // เตรียมข้อมูลบันทึก
+    if (isNaN(score)) score = 0; if (score < 0) score = 0; if (score > maxScore) { alert(`คะแนนห้ามเกิน ${maxScore}`); return; }
+    const studentIndex = studentsData.findIndex(s => s.__backendId === id); if (studentIndex === -1) return;
     const student = studentsData[studentIndex];
     const updateData = { ...student, practical_score: score };
-
-    // เปลี่ยนปุ่มเป็น Loading
     const btn = document.querySelector('#interview-modal button');
     const originalText = btn.innerHTML;
-    btn.innerHTML = `<svg class="animate-spin h-5 w-5 inline mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>กำลังบันทึก...`;
-    btn.disabled = true;
-
-    // ส่งข้อมูลไป Backend
+    btn.innerHTML = `กำลังบันทึก...`; btn.disabled = true;
     window.dataSdk.update(updateData).then(res => {
-        if (res.isOk) {
-            // อัปเดตในตารางทันที
-            studentsData[studentIndex].practical_score = score;
-            closeInterviewModal();
-            renderAdminDashboard(); // รีเฟรชหน้าจอเพื่อเรียงลำดับใหม่
-        } else {
-            alert('เกิดข้อผิดพลาด: ' + res.error.message);
-            btn.innerHTML = originalText; btn.disabled = false;
-        }
+        if (res.isOk) { studentsData[studentIndex].practical_score = score; closeInterviewModal(); renderAdminDashboard(); }
+        else { alert('เกิดข้อผิดพลาด: ' + res.error.message); btn.innerHTML = originalText; btn.disabled = false; }
     });
 }
 function closeInterviewModal() { const el = document.getElementById('temp-interview-modal-wrapper'); if (el) el.remove(); }
@@ -1508,27 +1362,20 @@ window.addEventListener('load', () => { window.dataSdk.init(dataHandler); render
 // --- ฟังก์ชันย่อย 3: หน้าบันทึกคะแนนปฏิบัติ/สัมภาษณ์ (ฉบับปรับปรุง: สวยงาม + โชว์คะแนนดิบ + แก้บั๊กชื่อหาย) ---
 // --- ฟังก์ชันย่อย 3: หน้าตารางรายชื่อผู้มีสิทธิ์สอบปฏิบัติ (ธีมสีเขียว/ระบบหลัก) ---
 function renderInterviewView(allStudents) {
-    // เรียงลำดับตามคะแนนรวม (มากไปน้อย)
     const sortedForClearing = [...allStudents].sort((a,b) => (b.total_score||0) - (a.total_score||0));
-    
-    // ตรวจสอบโควตา (Logic เดิม)
     const currentQuotas = { ...quotas[adminTab] };
-    const counts = {};
-    Object.keys(currentQuotas).forEach(k => counts[k] = 0);
+    const counts = {}; Object.keys(currentQuotas).forEach(k => counts[k] = 0);
     const allocationResult = {}; 
 
     sortedForClearing.forEach(s => {
         let choices = adminTab === 'm4' ? [s.choice_1, s.choice_2].filter(c=>c) : [s.choice_1, s.choice_2, s.choice_3].filter(c=>c);
         for (const choiceName of choices) {
             if (currentQuotas[choiceName] !== undefined && counts[choiceName] < currentQuotas[choiceName]) {
-                allocationResult[s.__backendId] = choiceName;
-                counts[choiceName]++;
-                break;
+                allocationResult[s.__backendId] = choiceName; counts[choiceName]++; break;
             }
         }
     });
 
-    // กำหนดโครงการที่จะแสดง
     const availablePrograms = adminTab === 'm1' ? ['sm', 'gate', 'eis'] : ['sme', 'gate'];
     if (rankingTab === 'all' || !availablePrograms.includes(rankingTab)) rankingTab = availablePrograms[0];
 
@@ -1537,7 +1384,6 @@ function renderInterviewView(allStudents) {
     const maxTotal = 100 + maxPractical;
     const finalRoundQuota = 40; 
 
-    // กรองรายชื่อเฉพาะโครงการนี้
     let interviewList = allStudents.filter(s => allocationResult[s.__backendId] === targetProgramName);
     interviewList = interviewList.map(s => {
         const written = parseFloat(s.total_score) || 0;
@@ -1545,60 +1391,38 @@ function renderInterviewView(allStudents) {
         return { ...s, written_score: written, practical_score: practical, grand_total: written + practical };
     }).sort((a, b) => b.grand_total - a.grand_total);
 
-    const tabs = adminTab === 'm1' 
-        ? [{ id: 'sm', label: 'S&M' }, { id: 'gate', label: 'GATE' }, { id: 'eis', label: 'EIS' }]
-        : [{ id: 'sme', label: 'SME' }, { id: 'gate', label: 'GATE' }];
+    const tabs = adminTab === 'm1' ? [{ id: 'sm', label: 'S&M' }, { id: 'gate', label: 'GATE' }, { id: 'eis', label: 'EIS' }] : [{ id: 'sme', label: 'SME' }, { id: 'gate', label: 'GATE' }];
 
     return `
     <div class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
             <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">บันทึกคะแนนปฏิบัติ ${adminTab==='m1'?'ม.1':'ม.4'}</h1>
-            <div class="flex flex-wrap gap-2">
-                ${tabs.map(t => `<button onclick="rankingTab='${t.id}';renderAdminDashboard();" class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border shadow-sm ${rankingTab===t.id ? 'bg-lime-500 text-white border-lime-500 shadow-lg shadow-lime-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}">${t.label}</button>`).join('')}
-            </div>
+            <div class="flex flex-wrap gap-2">${tabs.map(t => `<button onclick="rankingTab='${t.id}';renderAdminDashboard();" class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all border shadow-sm ${rankingTab===t.id ? 'bg-lime-500 text-white border-lime-500 shadow-lg shadow-lime-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}">${t.label}</button>`).join('')}</div>
         </div>
         <div class="flex gap-2">
              <button onclick="exportInterviewToExcel()" class="flex items-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg shadow-green-200 transition-all active:scale-95">Excel</button>
              <button onclick="exportInterviewToWord()" class="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-lime-500 to-green-600 hover:from-lime-600 hover:to-green-700 text-white rounded-xl font-bold shadow-lg shadow-lime-200/50 transition-all active:scale-95">Word</button>
         </div>
     </div>
-
     <div class="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
         <div class="p-6 bg-lime-50/50 border-b border-lime-100 flex justify-between items-center">
             <div><h3 class="font-bold text-lime-800 text-lg">โครงการ ${targetProgramName}</h3><p class="text-xs text-lime-600 mt-1">เต็ม: ข้อเขียน(100)+ปฏิบัติ(${maxPractical}) = ${maxTotal}</p></div>
             <div class="text-sm font-bold text-gray-500 bg-white px-4 py-2 rounded-xl shadow-sm">จำนวน: <span class="text-lime-600 text-lg">${interviewList.length}</span></div>
         </div>
-        
-        <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="bg-gray-50 text-gray-500 text-xs uppercase font-bold tracking-wider">
-                        <th class="px-4 py-4 w-12 text-center">ที่</th>
-                        <th class="px-4 py-4">ผู้เข้าสอบ</th>
-                        <th class="px-4 py-4 text-center">รวมข้อเขียน</th>
-                        <th class="px-4 py-4 text-center bg-lime-50 text-lime-700">คะแนนปฏิบัติ</th>
-                        <th class="px-4 py-4 text-center">รวมสุทธิ</th>
-                        <th class="px-4 py-4 text-center">สถานะ</th>
-                        <th class="px-4 py-4 text-center">จัดการ</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-50 text-sm">
-                    ${interviewList.length > 0 ? interviewList.map((s, i) => `
-                    <tr class="hover:bg-lime-50/30 transition-colors group">
-                        <td class="px-4 py-4 text-center font-bold text-gray-400 group-hover:text-lime-600">#${i+1}</td>
-                        <td class="px-4 py-4"><div class="font-bold text-gray-800">${s.full_name}</div><div class="text-xs text-gray-400 font-mono mt-0.5">${s.exam_id}</div></td>
-                        <td class="px-4 py-4 text-center font-bold text-gray-700">${s.written_score.toFixed(2)}</td>
-                        <td class="px-4 py-4 text-center font-bold text-lime-700 bg-lime-50/20">${s.practical_score > 0 ? s.practical_score.toFixed(2) : '-'}</td>
-                        <td class="px-4 py-4 text-center font-black text-gray-800 text-lg">${s.grand_total.toFixed(2)}</td>
-                        <td class="px-4 py-4 text-center">${i < finalRoundQuota ? `<span class="px-2 py-1 rounded bg-green-100 text-green-700 text-xs font-bold">ตัวจริง</span>` : `<span class="px-2 py-1 rounded bg-orange-50 text-orange-600 text-xs font-bold">สำรอง ${i - finalRoundQuota + 1}</span>`}</td>
-                        <td class="px-4 py-4 text-center">
-                            <button onclick="showInterviewForm('${s.__backendId}', ${maxPractical}, '${targetProgramName}')" class="px-4 py-2 bg-lime-100 hover:bg-lime-200 text-lime-700 rounded-xl text-xs font-bold border border-lime-200 active:scale-95 transition-all">ให้คะแนน</button>
-                        </td>
-                    </tr>`).join('') : `<tr><td colspan="7" class="text-center py-12 text-gray-400">ไม่มีข้อมูล</td></tr>`}
-                </tbody>
-            </table>
-        </div>
-    </div>`;
+        <div class="overflow-x-auto"><table class="w-full text-left border-collapse"><thead><tr class="bg-gray-50 text-gray-500 text-xs uppercase font-bold tracking-wider">
+            <th class="px-4 py-4 w-12 text-center">ที่</th><th class="px-4 py-4">ผู้เข้าสอบ</th><th class="px-4 py-4 text-center">รวมข้อเขียน</th><th class="px-4 py-4 text-center bg-lime-50 text-lime-700">คะแนนปฏิบัติ</th><th class="px-4 py-4 text-center">รวมสุทธิ</th><th class="px-4 py-4 text-center">สถานะ</th><th class="px-4 py-4 text-center">จัดการ</th>
+        </tr></thead><tbody class="divide-y divide-gray-50 text-sm">
+        ${interviewList.length > 0 ? interviewList.map((s, i) => `
+        <tr class="hover:bg-lime-50/30 transition-colors group">
+            <td class="px-4 py-4 text-center font-bold text-gray-400 group-hover:text-lime-600">#${i+1}</td>
+            <td class="px-4 py-4"><div class="font-bold text-gray-800">${s.full_name}</div><div class="text-xs text-gray-400 font-mono mt-0.5">${s.exam_id}</div></td>
+            <td class="px-4 py-4 text-center font-bold text-gray-700">${s.written_score.toFixed(2)}</td>
+            <td class="px-4 py-4 text-center font-bold text-lime-700 bg-lime-50/20">${s.practical_score > 0 ? s.practical_score.toFixed(2) : '-'}</td>
+            <td class="px-4 py-4 text-center font-black text-gray-800 text-lg">${s.grand_total.toFixed(2)}</td>
+            <td class="px-4 py-4 text-center">${i < finalRoundQuota ? `<span class="px-2 py-1 rounded bg-green-100 text-green-700 text-xs font-bold">ตัวจริง</span>` : `<span class="px-2 py-1 rounded bg-orange-50 text-orange-600 text-xs font-bold">สำรอง ${i - finalRoundQuota + 1}</span>`}</td>
+            <td class="px-4 py-4 text-center"><button onclick="showInterviewForm('${s.__backendId}', ${maxPractical}, '${targetProgramName}')" class="px-4 py-2 bg-lime-100 hover:bg-lime-200 text-lime-700 rounded-xl text-xs font-bold border border-lime-200 active:scale-95 transition-all">ให้คะแนน</button></td>
+        </tr>`).join('') : `<tr><td colspan="7" class="text-center py-12 text-gray-400">ไม่มีข้อมูล</td></tr>`}
+        </tbody></table></div></div>`;
 }
 // ฟังก์ชันบันทึกคะแนนปฏิบัติ (อัปเดตและเรียงลำดับใหม่ทันที)
 function updatePracticalScore(id, value, max) {
