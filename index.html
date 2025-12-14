@@ -864,7 +864,7 @@ function renderRankingView(allStudents) {
         if (adminTab === 'm1') processingData = allStudents.filter(s => !['p4', 'p5'].includes(s.grade_level));
         isFilteredMode = true;
     } 
-    // --- เพิ่มเงื่อนไขสำหรับ Pre-test แยกชั้น ---
+    // --- เงื่อนไข Pre-test ---
     else if (rankingTab === 'pretest') {
         if (adminTab === 'm1') processingData = allStudents.filter(s => ['p4', 'p5'].includes(s.grade_level));
         isPretestMode = true;
@@ -874,6 +874,11 @@ function renderRankingView(allStudents) {
     } else if (rankingTab === 'pretest_p5') {
         if (adminTab === 'm1') processingData = allStudents.filter(s => s.grade_level === 'p5');
         isPretestMode = true;
+    } 
+    // 🔥 เพิ่มเงื่อนไข ป.6 🔥
+    else if (rankingTab === 'pretest_p6') {
+        if (adminTab === 'm1') processingData = allStudents.filter(s => s.grade_level === 'p6');
+        isPretestMode = true; 
     }
 
     const allocationResult = executeClearingHouse(processingData, quotas[adminTab]);
@@ -889,12 +894,13 @@ function renderRankingView(allStudents) {
     if (rankingTab === 'pretest') title = "สรุปคะแนน Pre-test (ป.4-5 รวม)";
     if (rankingTab === 'pretest_p4') title = "สรุปคะแนน Pre-test (เฉพาะ ป.4)";
     if (rankingTab === 'pretest_p5') title = "สรุปคะแนน Pre-test (เฉพาะ ป.5)";
+    if (rankingTab === 'pretest_p6') title = "สรุปคะแนน Pre-test (เฉพาะ ป.6)"; // 🔥
 
     // Helper: คำนวณคะแนนย่อย
     const getSubScore = (score, subject, program) => {
         const s = parseFloat(score) || 0;
         // กรณีภาพรวม หรือ Pre-test ให้คืนค่าคะแนนดิบ
-        if (['all', 'filtered', 'pretest', 'pretest_p4', 'pretest_p5'].includes(program)) return s;
+        if (['all', 'filtered', 'pretest', 'pretest_p4', 'pretest_p5', 'pretest_p6'].includes(program)) return s;
 
         const p = program.toLowerCase();
         if (p.includes('s&m') || p.includes('sme')) {
@@ -913,7 +919,7 @@ function renderRankingView(allStudents) {
         return s;
     };
 
-    if (['all', 'filtered', 'pretest', 'pretest_p4', 'pretest_p5'].includes(rankingTab)) {
+    if (['all', 'filtered', 'pretest', 'pretest_p4', 'pretest_p5', 'pretest_p6'].includes(rankingTab)) {
         // === โหมดแสดงคะแนนดิบ ===
         scoreLabel = "คะแนนรวม (110)";
         subScoreType = "(ดิบ)";
@@ -1030,15 +1036,16 @@ function renderRankingView(allStudents) {
         }
     }
 
-    // --- สร้างปุ่ม Tabs (เพิ่มปุ่ม Pre-test ย่อย) ---
+    // --- สร้างปุ่ม Tabs (เพิ่มปุ่ม Pre-test ป.6) ---
     let tabs = [];
     if (adminTab === 'm1') {
         tabs = [
             { id: 'all', label: 'ทั้งหมด (Raw)' },
             { id: 'filtered', label: 'ตัด ป.4-5' },
             { id: 'pretest', label: 'Pre-test (รวม)' },
-            { id: 'pretest_p4', label: 'Pre-test (ป.4)' }, // ใหม่
-            { id: 'pretest_p5', label: 'Pre-test (ป.5)' }, // ใหม่
+            { id: 'pretest_p4', label: 'Pre-test (ป.4)' },
+            { id: 'pretest_p5', label: 'Pre-test (ป.5)' },
+            { id: 'pretest_p6', label: 'Pre-test (ป.6)' }, // 🔥 ปุ่มใหม่
             { id: 'sm', label: 'S&M' },
             { id: 'gate', label: 'GATE' },
             { id: 'eis', label: 'EIS' }
@@ -1056,7 +1063,7 @@ function renderRankingView(allStudents) {
         <div>
             <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">${title} ${adminTab==='m1'?'ม.1':'ม.4'}</h1>
             <p class="text-sm text-gray-500">
-                ${isPretestMode || rankingTab === 'all' || rankingTab === 'filtered'
+                ${(isPretestMode || rankingTab === 'all' || rankingTab === 'filtered') 
                     ? 'แสดงคะแนนดิบรายวิชา (เต็ม 40, 30, 40 รวม 110)' 
                     : 'แสดงคะแนนสัดส่วนร้อยละตามโครงการ (Weighted Score รวม 100)'
                 }
@@ -1080,7 +1087,7 @@ function renderRankingView(allStudents) {
 
     <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100">
         <div class="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-            <h3 class="font-bold text-gray-700">${(rankingTab === 'all' || rankingTab === 'filtered' || isPretestMode) ? 'รายชื่อผู้เข้าสอบ' : 'รายชื่อผู้ผ่านเกณฑ์และสำรอง'}</h3>
+            <h3 class="font-bold text-gray-700">${(isPretestMode || rankingTab === 'all' || rankingTab === 'filtered') ? 'รายชื่อผู้เข้าสอบ' : 'รายชื่อผู้ผ่านเกณฑ์และสำรอง'}</h3>
             <div class="text-xs font-bold text-gray-400">จำนวน: ${renderList.length} คน ${!isPretestMode && rankingTab !== 'all' && rankingTab !== 'filtered' ? `/ รับ ${showQuota}` : ''}</div>
         </div>
         <div class="overflow-x-auto">
@@ -1148,6 +1155,9 @@ function exportToWord() {
     } else if (rankingTab === 'pretest_p5') {
         if (adminTab === 'm1') activeData = activeData.filter(s => s.grade_level === 'p5');
         isPretestMode = true;
+    } else if (rankingTab === 'pretest_p6') { // 🔥
+        if (adminTab === 'm1') activeData = activeData.filter(s => s.grade_level === 'p6');
+        isPretestMode = true;
     }
 
     const allocationResult = executeClearingHouse(activeData, quotas[adminTab]);
@@ -1167,6 +1177,7 @@ function exportToWord() {
         if(rankingTab === 'pretest') titleProgram = "สรุปคะแนน Pre-test (รวม ป.4-5)";
         if(rankingTab === 'pretest_p4') titleProgram = "สรุปคะแนน Pre-test (เฉพาะ ป.4)";
         if(rankingTab === 'pretest_p5') titleProgram = "สรุปคะแนน Pre-test (เฉพาะ ป.5)";
+        if(rankingTab === 'pretest_p6') titleProgram = "สรุปคะแนน Pre-test (เฉพาะ ป.6)"; // 🔥
 
     } else {
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
@@ -1916,6 +1927,9 @@ function exportRankingToExcel() {
     } else if (rankingTab === 'pretest_p5') {
         if (adminTab === 'm1') activeData = activeData.filter(s => s.grade_level === 'p5');
         isPretestMode = true;
+    } else if (rankingTab === 'pretest_p6') { // 🔥
+        if (adminTab === 'm1') activeData = activeData.filter(s => s.grade_level === 'p6');
+        isPretestMode = true;
     }
 
     const allocationResult = executeClearingHouse(activeData, quotas[adminTab]);
@@ -1938,6 +1952,7 @@ function exportRankingToExcel() {
         if(rankingTab === 'pretest') suffix = "Pre-test(รวม)";
         if(rankingTab === 'pretest_p4') suffix = "Pre-test(ป.4)";
         if(rankingTab === 'pretest_p5') suffix = "Pre-test(ป.5)";
+        if(rankingTab === 'pretest_p6') suffix = "Pre-test(ป.6)"; // 🔥
         
         fileName = `ประกาศผล_${adminTab}_${suffix}.xlsx`;
 
