@@ -1848,90 +1848,108 @@ function saveSingleInterviewScore(id, maxScore) {
     });
 }
 // --- ฟังก์ชัน Export Excel สำหรับหน้าประกาศผล/จัดลำดับ ---
-function exportRankingToExcel() {
-    const m1 = studentsData.filter(s => ['p4','p5','p6','m1'].includes(s.grade_level));
-    const m4 = studentsData.filter(s => ['m3','m4'].includes(s.grade_level));
-    let activeData = adminTab === 'm1' ? m1 : m4;
-
-    let isFilteredMode = false;
-    let isPretestMode = false;
-
-    if (rankingTab === 'filtered') {
-        if (adminTab === 'm1') activeData = activeData.filter(s => !['p4', 'p5'].includes(s.grade_level));
-        isFilteredMode = true;
-    } else if (rankingTab === 'pretest') {
-        if (adminTab === 'm1') activeData = activeData.filter(s => ['p4', 'p5'].includes(s.grade_level));
-        isPretestMode = true;
+function exportInterviewToExcel() {
+    const allocationResult = executeClearingHouse(studentsData, quotas[adminTab]);
+    
+    // กำหนด Tab ปัจจุบัน
+    const availablePrograms = adminTab === 'm1' ? ['sm', 'gate', 'eis'] : ['sme', 'gate'];
+    if (rankingTab === 'all' || rankingTab === 'filtered' || !availablePrograms.includes(rankingTab)) {
+        rankingTab = availablePrograms[0]; // Default
     }
 
-    const allocationResult = executeClearingHouse(activeData, quotas[adminTab]);
-    let dataList = [];
-    let fileName = "";
+    const targetProgramName = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
+    const practicalQuota = 40; // ตัดตัวจริง 40 คน
+    
+    // *** แก้ไขจุดสำคัญ: กำหนดคะแนนเต็ม ***
+    // S&M (ม.1) = 20
+    // SME (ม.4), GATE, EIS = 100
+    const maxPractical = (targetProgramName === 'S&M') ? 20 : 100;
+    const maxTotal = 100 + maxPractical;
 
-    if (rankingTab === 'all' || rankingTab === 'filtered' || rankingTab === 'pretest') {
-        dataList = [...activeData].sort((a,b) => b.total_score - a.total_score).map((s, i) => ({
-            ...s, score_to_show: s.total_score,
-            status_text: allocationResult[s.__backendId] ? `ติด ${allocationResult[s.__backendId].program}` : 'ไม่ผ่านเกณฑ์'
-        }));
-        
-        let suffix = "RawData";
-        if(isFilteredMode) suffix = "สรุปคัดกรอง";
-        if(isPretestMode) suffix = "Pre-test(ป.4-5)";
-        fileName = `ประกาศผล_${adminTab}_${suffix}.xlsx`;
-    } else {
-        const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
-        const getChoiceRank = (student, prog) => { if (student.choice_1 === prog) return 1; if (student.choice_2 === prog) return 2; if (student.choice_3 === prog) return 3; return 99; };
-        
-        dataList = activeData.filter(s => {
-            const targetRank = getChoiceRank(s, targetProgram);
-            if (targetRank === 99) return false;
-            const officialResult = allocationResult[s.__backendId];
-            if (officialResult && officialResult.program === targetProgram) return true;
-            const officialRank = officialResult ? getChoiceRank(s, officialResult.program) : 99;
-            return targetRank < officialRank; 
-        });
+    // Helper: คำนวณคะแนนถ่วงน้ำหนัก (Weighted Score)
+    const getSubScore = (score, subject, program) => {
+        const s = parseFloat(score) || 0;
+        const p = program.toLowerCase();
+        if (p.includes('s&m') || p.includes('sme')) {
+            if (subject === 'sci') return s * 1.0;
+            if (subject === 'math') return s * (40/30);
+            if (subject === 'eng') return s * 0.5;
+        } else if (p.includes('gate')) {
+            if (subject === 'sci') return s * 0.875;
+            if (subject === 'math') return s * (35/30);
+            if (subject === 'eng') return s * 0.75;
+        } else if (p.includes('eis')) {
+            if (subject === 'sci') return s * 0.75;
+            if (subject === 'math') return s * 1.0;
+            if (subject === 'eng') return s * 1.0;
+        }
+        return s;
+    };
 
-        dataList = dataList.map(s => {
-            const officialResult = allocationResult[s.__backendId];
-            const isReal = officialResult && officialResult.program === targetProgram;
-            return {
-                ...s, score_to_show: getWeightedScore(s, targetProgram),
-                is_real: isReal, official_result: officialResult, choice_priority: getChoiceRank(s, targetProgram)
-            };
-        });
+    // กรองรายชื่อเฉพาะคนที่ติดโครงการนี้
+    let interviewList = studentsData.filter(s => {
+        const result = allocationResult[s.__backendId];
+        return result && result.program === targetProgramName;
+    });
 
-        dataList.sort((a, b) => {
-            if (a.is_real && !b.is_real) return -1; if (!a.is_real && b.is_real) return 1;
-            if (!a.is_real && !b.is_real) { if (a.choice_priority !== b.choice_priority) return a.choice_priority - b.choice_priority; }
-            return b.score_to_show - a.score_to_show;
-        });
-        fileName = `ใบรายชื่อ_${adminTab}_${targetProgram}.xlsx`;
-    }
+    // คำนวณคะแนน
+    interviewList = interviewList.map(s => {
+        const w_sci = getSubScore(s.science_score, 'sci', targetProgramName);
+        const w_math = getSubScore(s.math_score, 'math', targetProgramName);
+        const w_eng = getSubScore(s.english_score, 'eng', targetProgramName);
+        const written = w_sci + w_math + w_eng;
+        const practical = parseFloat(s.practical_score) || 0;
+        return { 
+            ...s, w_sci, w_math, w_eng, 
+            written_score: written,
+            practical_score: practical, 
+            grand_total: written + practical 
+        };
+    }).sort((a, b) => b.grand_total - a.grand_total);
 
-    if (dataList.length === 0) return showAlert('แจ้งเตือน', 'ไม่มีข้อมูล');
-
+    // คำนวณสถานะ ตัวจริง/สำรอง
     let currentRank = 1;
-    for (let i = 0; i < dataList.length; i++) {
+    for (let i = 0; i < interviewList.length; i++) {
         if (i > 0) {
-            const scoreSame = Math.abs(dataList[i].score_to_show - dataList[i-1].score_to_show) < 0.00001;
-            const statusSame = (rankingTab !== 'all' && rankingTab !== 'filtered' && rankingTab !== 'pretest') ? (dataList[i].is_real === dataList[i-1].is_real) : true;
-            if (scoreSame && statusSame) dataList[i].rank = dataList[i-1].rank;
-            else { currentRank++; dataList[i].rank = currentRank; }
-        } else { dataList[i].rank = 1; }
+            if (Math.abs(interviewList[i].grand_total - interviewList[i-1].grand_total) < 0.00001) {
+                interviewList[i].final_rank = interviewList[i-1].final_rank;
+            } else {
+                currentRank = i + 1;
+                interviewList[i].final_rank = currentRank;
+            }
+        } else {
+            interviewList[i].final_rank = 1;
+        }
+
+        if (interviewList[i].final_rank <= practicalQuota) {
+            interviewList[i].final_status = 'ตัวจริง';
+        } else {
+            const reserveRank = interviewList[i].final_rank - practicalQuota;
+            interviewList[i].final_status = `สำรอง ${reserveRank}`;
+        }
     }
 
-    const excelRows = dataList.map(s => ({
-        'ลำดับ': s.rank,
-        'เลขประจำตัวสอบ': s.exam_id,
-        'ชื่อ-นามสกุล': s.full_name,
-        'โรงเรียน': s.previous_school || '-',
-        'หมายเหตุ': ''
+    if(interviewList.length === 0) return showAlert('แจ้งเตือน', 'ไม่มีข้อมูล');
+
+    // สร้างข้อมูล Excel
+    const excelRows = interviewList.map(s => ({
+        'ลำดับที่': s.final_rank,
+        'รหัสสอบ': s.exam_id,
+        'ชื่อ-สกุล': s.full_name,
+        'วิทย์ (Weight)': s.w_sci.toFixed(2),
+        'คณิต (Weight)': s.w_math.toFixed(2),
+        'อังกฤษ (Weight)': s.w_eng.toFixed(2),
+        'รวมข้อเขียน (100)': s.written_score.toFixed(2),
+        [`คะแนนปฏิบัติ (${maxPractical})`]: s.practical_score.toFixed(2),
+        [`รวมสุทธิ (${maxTotal})`]: s.grand_total.toFixed(2),
+        'ผลการคัดเลือก': s.final_status
     }));
 
+    // สร้างไฟล์
     const ws = XLSX.utils.json_to_sheet(excelRows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "SignatureSheet");
-    XLSX.writeFile(wb, fileName);
+    XLSX.utils.book_append_sheet(wb, ws, "Scores");
+    XLSX.writeFile(wb, `คะแนนสอบปฏิบัติ_${targetProgramName}_${adminTab}.xlsx`);
 }
 window.addEventListener('load', () => { window.dataSdk.init(dataHandler); render(); });
 // --- ฟังก์ชันย่อย 3: หน้าบันทึกคะแนนปฏิบัติ/สัมภาษณ์ (ฉบับปรับปรุง: สวยงาม + โชว์คะแนนดิบ + แก้บั๊กชื่อหาย) ---
@@ -1946,10 +1964,13 @@ function renderInterviewView(allStudents) {
 
     const targetProgramName = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
     
-    // *** แก้ไขตรงนี้: กำหนดจำนวนรับตัวจริงในรอบนี้เป็น 40 คนถ้วน ***
     const practicalQuota = 40; 
     
-    const maxPractical = (targetProgramName === 'S&M' || targetProgramName === 'SME') ? 20 : 100;
+    // *** แก้ไขจุดสำคัญตรงนี้ ***
+    // S&M (ม.1) เต็ม 20
+    // SME (ม.4) เต็ม 100 (และโครงการอื่นๆ ก็ 100)
+    const maxPractical = (targetProgramName === 'S&M') ? 20 : 100;
+    
     const maxTotal = 100 + maxPractical;
     
     const getSubScore = (score, subject, program) => {
@@ -1990,7 +2011,6 @@ function renderInterviewView(allStudents) {
         };
     }).sort((a, b) => b.grand_total - a.grand_total);
 
-    // --- คำนวณสถานะ ตัวจริง (40 คนแรก) / สำรอง ---
     let currentRank = 1;
     for (let i = 0; i < interviewList.length; i++) {
         if (i > 0) {
@@ -2004,12 +2024,10 @@ function renderInterviewView(allStudents) {
             interviewList[i].final_rank = 1;
         }
 
-        // ตัดเกณฑ์ที่ 40 คน
         if (interviewList[i].final_rank <= practicalQuota) {
             interviewList[i].final_status = 'ตัวจริง';
             interviewList[i].is_pass = true;
         } else {
-            // สำรองลำดับที่... (เอาลำดับปัจจุบัน - 40)
             const reserveRank = interviewList[i].final_rank - practicalQuota;
             interviewList[i].final_status = `สำรอง ${reserveRank}`;
             interviewList[i].is_pass = false;
@@ -2081,14 +2099,12 @@ function renderInterviewView(allStudents) {
                         <td class="px-4 py-4 text-center font-bold text-gray-700 bg-gray-50 group-hover:bg-lime-50/20 text-lg">${s.written_score.toFixed(2)}</td>
                         <td class="px-4 py-4 text-center font-bold text-lime-700 bg-lime-50/20">${s.practical_score > 0 ? s.practical_score.toFixed(2) : '-'}</td>
                         <td class="px-4 py-4 text-center font-black text-gray-800 text-lg">${s.grand_total.toFixed(2)}</td>
-                        
                         <td class="px-4 py-4 text-center">
                             ${s.is_pass 
                                 ? `<span class="inline-block px-3 py-1 rounded-full bg-green-100 text-green-700 font-bold text-xs shadow-sm whitespace-nowrap">ตัวจริง</span>` 
                                 : `<span class="inline-block px-3 py-1 rounded-full bg-orange-100 text-orange-700 font-bold text-xs shadow-sm whitespace-nowrap">${s.final_status}</span>`
                             }
                         </td>
-
                         <td class="px-4 py-4 text-center">
                             <button onclick="showInterviewForm('${s.__backendId}', ${maxPractical}, '${targetProgramName}')" class="px-4 py-2 bg-lime-100 hover:bg-lime-200 text-lime-700 rounded-xl text-xs font-bold shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2 mx-auto border border-lime-200"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>ให้คะแนน</button>
                         </td>
@@ -2262,60 +2278,95 @@ function savePracticalScores() {
 }
     // --- ฟังก์ชันส่งออกรายงานคะแนนปฏิบัติเป็น Word (แบบละเอียด) ---
 function exportInterviewToWord() {
-    // 1. Logic ดึงข้อมูล (เหมือน renderInterviewView เป๊ะๆ เพื่อให้ข้อมูลตรงกัน)
-    const sortedForClearing = [...studentsData].sort((a,b) => (b.total_score||0) - (a.total_score||0));
-    const currentQuotas = { ...quotas[adminTab] };
-    const counts = {};
-    Object.keys(currentQuotas).forEach(k => counts[k] = 0);
-    const allocationResult = {}; 
-
-    sortedForClearing.forEach(s => {
-        let choices = adminTab === 'm4' ? [s.choice_1, s.choice_2].filter(c=>c) : [s.choice_1, s.choice_2, s.choice_3].filter(c=>c);
-        for (const choiceName of choices) {
-            if (currentQuotas[choiceName] !== undefined && counts[choiceName] < currentQuotas[choiceName]) {
-                allocationResult[s.__backendId] = choiceName;
-                counts[choiceName]++;
-                break;
-            }
-        }
-    });
+    const allocationResult = executeClearingHouse(studentsData, quotas[adminTab]);
+    
+    const availablePrograms = adminTab === 'm1' ? ['sm', 'gate', 'eis'] : ['sme', 'gate'];
+    if (rankingTab === 'all' || rankingTab === 'filtered' || !availablePrograms.includes(rankingTab)) {
+        rankingTab = availablePrograms[0];
+    }
 
     const targetProgramName = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
-    const maxPractical = targetProgramName === 'S&M' ? 20 : 100;
-    const maxTotal = 110 + maxPractical;
-    const finalRoundQuota = 40;
+    const practicalQuota = 40;
+    
+    const maxPractical = (targetProgramName === 'S&M') ? 20 : 100;
+    const maxTotal = 100 + maxPractical;
 
-    // กรองและเรียงลำดับ
-    let interviewList = studentsData.filter(s => allocationResult[s.__backendId] === targetProgramName);
+    // Helper (Duplicate แต่จำเป็นต้องมีใน scope นี้)
+    const getSubScore = (score, subject, program) => {
+        const s = parseFloat(score) || 0;
+        const p = program.toLowerCase();
+        if (p.includes('s&m') || p.includes('sme')) {
+            if (subject === 'sci') return s * 1.0;
+            if (subject === 'math') return s * (40/30);
+            if (subject === 'eng') return s * 0.5;
+        } else if (p.includes('gate')) {
+            if (subject === 'sci') return s * 0.875;
+            if (subject === 'math') return s * (35/30);
+            if (subject === 'eng') return s * 0.75;
+        } else if (p.includes('eis')) {
+            if (subject === 'sci') return s * 0.75;
+            if (subject === 'math') return s * 1.0;
+            if (subject === 'eng') return s * 1.0;
+        }
+        return s;
+    };
+
+    let interviewList = studentsData.filter(s => {
+        const result = allocationResult[s.__backendId];
+        return result && result.program === targetProgramName;
+    });
+
     interviewList = interviewList.map(s => {
-        const sci = parseFloat(s.science_score) || 0;
-        const math = parseFloat(s.math_score) || 0;
-        const eng = parseFloat(s.english_score) || 0;
-        const written = parseFloat(s.total_score) || 0;
+        const w_sci = getSubScore(s.science_score, 'sci', targetProgramName);
+        const w_math = getSubScore(s.math_score, 'math', targetProgramName);
+        const w_eng = getSubScore(s.english_score, 'eng', targetProgramName);
+        const written = w_sci + w_math + w_eng;
         const practical = parseFloat(s.practical_score) || 0;
         return { 
-            ...s, sci, math, eng, written_score: written, 
-            practical_score: practical, grand_total: written + practical 
+            ...s, w_sci, w_math, w_eng, 
+            written_score: written,
+            practical_score: practical, 
+            grand_total: written + practical 
         };
     }).sort((a, b) => b.grand_total - a.grand_total);
 
-    // 2. สร้างตาราง HTML สำหรับ Word
-    const tableRows = interviewList.length > 0 ? interviewList.map((s, i) => `
+    let currentRank = 1;
+    for (let i = 0; i < interviewList.length; i++) {
+        if (i > 0) {
+            if (Math.abs(interviewList[i].grand_total - interviewList[i-1].grand_total) < 0.00001) {
+                interviewList[i].final_rank = interviewList[i-1].final_rank;
+            } else {
+                currentRank = i + 1;
+                interviewList[i].final_rank = currentRank;
+            }
+        } else {
+            interviewList[i].final_rank = 1;
+        }
+
+        if (interviewList[i].final_rank <= practicalQuota) {
+            interviewList[i].final_status = 'ตัวจริง';
+        } else {
+            const reserveRank = interviewList[i].final_rank - practicalQuota;
+            interviewList[i].final_status = `สำรอง ${reserveRank}`;
+        }
+    }
+
+    if(interviewList.length === 0) return showAlert('แจ้งเตือน', 'ไม่มีข้อมูล');
+
+    const tableRows = interviewList.map((s, i) => `
         <tr>
-            <td style="text-align:center;">${i+1}</td>
+            <td style="text-align:center;">${s.final_rank}</td>
             <td style="text-align:center;">${s.exam_id}</td>
             <td>${s.full_name}</td>
-            <td style="text-align:center;">${s.sci}</td>
-            <td style="text-align:center;">${s.math}</td>
-            <td style="text-align:center;">${s.eng}</td>
+            <td style="text-align:center;">${s.w_sci.toFixed(2)}</td>
+            <td style="text-align:center;">${s.w_math.toFixed(2)}</td>
+            <td style="text-align:center;">${s.w_eng.toFixed(2)}</td>
             <td style="text-align:center; font-weight:bold;">${s.written_score.toFixed(2)}</td>
             <td style="text-align:center; font-weight:bold;">${s.practical_score.toFixed(2)}</td>
             <td style="text-align:center; font-weight:bold; background-color:#f9f9f9;">${s.grand_total.toFixed(2)}</td>
-            <td style="text-align:center;">
-                ${i < finalRoundQuota ? 'ตัวจริง' : 'สำรองลำดับที่ ' + (i - finalRoundQuota + 1)}
-            </td>
+            <td style="text-align:center;">${s.final_status}</td>
         </tr>
-    `).join('') : `<tr><td colspan="10" style="text-align:center;">ไม่มีข้อมูล</td></tr>`;
+    `).join('');
 
     const title = `แบบบันทึกคะแนนสอบคัดเลือก (รอบปฏิบัติ/สัมภาษณ์) โครงการ ${targetProgramName} - ${adminTab==='m1'?'ม.1':'ม.4'}`;
     
@@ -2344,15 +2395,15 @@ function exportInterviewToWord() {
                     <th rowspan="2" width="5%">ที่</th>
                     <th rowspan="2" width="10%">รหัสสอบ</th>
                     <th rowspan="2" width="20%">ชื่อ - สกุล</th>
-                    <th colspan="4">คะแนนสอบข้อเขียน (100 คะแนน)</th>
+                    <th colspan="4">คะแนนสอบข้อเขียน (Weighted Score 100)</th>
                     <th rowspan="2" width="10%">ปฏิบัติ<br>(${maxPractical})</th>
                     <th rowspan="2" width="10%">รวมสุทธิ<br>(${maxTotal})</th>
                     <th rowspan="2" width="10%">ผลการ<br>คัดเลือก</th>
                 </tr>
                 <tr>
-                    <th width="7%">วิทย์<br>(40)</th>
-                    <th width="7%">คณิต<br>(30)</th>
-                    <th width="7%">อังกฤษ<br>(30)</th>
+                    <th width="7%">วิทย์</th>
+                    <th width="7%">คณิต</th>
+                    <th width="7%">อังกฤษ</th>
                     <th width="8%">รวม</th>
                 </tr>
             </thead>
