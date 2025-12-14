@@ -1946,6 +1946,23 @@ function exportRankingToExcel() {
 window.addEventListener('load', () => { window.dataSdk.init(dataHandler); render(); });
 // --- ฟังก์ชันย่อย 3: หน้าบันทึกคะแนนปฏิบัติ/สัมภาษณ์ (ฉบับปรับปรุง: สวยงาม + โชว์คะแนนดิบ + แก้บั๊กชื่อหาย) ---
 // --- ฟังก์ชันย่อย 3: หน้าตารางรายชื่อผู้มีสิทธิ์สอบปฏิบัติ (ธีมสีเขียว/ระบบหลัก) ---
+function filterInterviewTable() {
+    const input = document.getElementById('interview-search');
+    const filter = input.value.toLowerCase().trim();
+    const rows = document.querySelectorAll('.interview-row'); // แถวในตาราง
+
+    rows.forEach(row => {
+        const name = row.getAttribute('data-name').toLowerCase();
+        const id = row.getAttribute('data-id').toLowerCase();
+        
+        // ถ้าชื่อ หรือ รหัส ตรงกับคำค้นหา ให้แสดง
+        if (name.includes(filter) || id.includes(filter)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
 function renderInterviewView(allStudents) {
     const allocationResult = executeClearingHouse(allStudents, quotas[adminTab]);
     
@@ -1957,12 +1974,7 @@ function renderInterviewView(allStudents) {
     const targetProgramName = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
     
     const practicalQuota = 40; 
-    
-    // *** แก้ไขจุดสำคัญตรงนี้ ***
-    // S&M (ม.1) เต็ม 20
-    // SME (ม.4) เต็ม 100 (และโครงการอื่นๆ ก็ 100)
     const maxPractical = (targetProgramName === 'S&M') ? 20 : 100;
-    
     const maxTotal = 100 + maxPractical;
     
     const getSubScore = (score, subject, program) => {
@@ -2040,15 +2052,22 @@ function renderInterviewView(allStudents) {
             </div>
         </div>
         
-        <div class="flex gap-2">
-            <button onclick="exportInterviewToExcel()" class="flex items-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg shadow-green-200 transition-all active:scale-95">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                Excel
-            </button>
-            <button onclick="exportInterviewToWord()" class="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-lime-500 to-green-600 hover:from-lime-600 hover:to-green-700 text-white rounded-xl font-bold shadow-lg shadow-lime-200/50 transition-all active:scale-95">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                Word (.doc)
-            </button>
+        <div class="flex flex-col md:flex-row gap-3 items-end">
+            <div class="relative">
+                <input type="text" id="interview-search" onkeyup="filterInterviewTable()" placeholder="ค้นหาชื่อ หรือ รหัส..." class="pl-9 pr-4 py-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-lime-500 outline-none shadow-sm w-full md:w-64">
+                <svg class="w-4 h-4 text-gray-400 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </div>
+
+            <div class="flex gap-2">
+                <button onclick="exportInterviewToExcel()" class="flex items-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg shadow-green-200 transition-all active:scale-95 text-xs md:text-sm">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    Excel
+                </button>
+                <button onclick="exportInterviewToWord()" class="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-lime-500 to-green-600 hover:from-lime-600 hover:to-green-700 text-white rounded-xl font-bold shadow-lg shadow-lime-200/50 transition-all active:scale-95 text-xs md:text-sm">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    Word
+                </button>
+            </div>
         </div>
     </div>
 
@@ -2079,7 +2098,7 @@ function renderInterviewView(allStudents) {
                 </thead>
                 <tbody class="divide-y divide-gray-50 text-sm">
                     ${interviewList.length > 0 ? interviewList.map((s, i) => `
-                    <tr class="hover:bg-lime-50/30 transition-colors group">
+                    <tr class="hover:bg-lime-50/30 transition-colors group interview-row" data-name="${s.full_name}" data-id="${s.exam_id}">
                         <td class="px-4 py-4 text-center font-bold text-gray-400 group-hover:text-lime-600">#${s.final_rank}</td>
                         <td class="px-4 py-4">
                             <div class="font-bold text-gray-800">${s.full_name}</div>
