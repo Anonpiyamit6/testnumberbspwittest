@@ -1848,108 +1848,100 @@ function saveSingleInterviewScore(id, maxScore) {
     });
 }
 // --- ฟังก์ชัน Export Excel สำหรับหน้าประกาศผล/จัดลำดับ ---
-function exportInterviewToExcel() {
-    const allocationResult = executeClearingHouse(studentsData, quotas[adminTab]);
-    
-    // กำหนด Tab ปัจจุบัน
-    const availablePrograms = adminTab === 'm1' ? ['sm', 'gate', 'eis'] : ['sme', 'gate'];
-    if (rankingTab === 'all' || rankingTab === 'filtered' || !availablePrograms.includes(rankingTab)) {
-        rankingTab = availablePrograms[0]; // Default
+function exportRankingToExcel() {
+    const m1 = studentsData.filter(s => ['p4','p5','p6','m1'].includes(s.grade_level));
+    const m4 = studentsData.filter(s => ['m3','m4'].includes(s.grade_level));
+    let activeData = adminTab === 'm1' ? m1 : m4;
+
+    // 1. ตรวจสอบโหมด Filter / Pretest
+    let isFilteredMode = false;
+    let isPretestMode = false;
+
+    if (rankingTab === 'filtered') {
+        if (adminTab === 'm1') activeData = activeData.filter(s => !['p4', 'p5'].includes(s.grade_level));
+        isFilteredMode = true;
+    } else if (rankingTab === 'pretest') {
+        if (adminTab === 'm1') activeData = activeData.filter(s => ['p4', 'p5'].includes(s.grade_level));
+        isPretestMode = true;
     }
 
-    const targetProgramName = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
-    const practicalQuota = 40; // ตัดตัวจริง 40 คน
-    
-    // *** แก้ไขจุดสำคัญ: กำหนดคะแนนเต็ม ***
-    // S&M (ม.1) = 20
-    // SME (ม.4), GATE, EIS = 100
-    const maxPractical = (targetProgramName === 'S&M') ? 20 : 100;
-    const maxTotal = 100 + maxPractical;
+    const allocationResult = executeClearingHouse(activeData, quotas[adminTab]);
+    let dataList = [];
+    let fileName = "";
 
-    // Helper: คำนวณคะแนนถ่วงน้ำหนัก (Weighted Score)
-    const getSubScore = (score, subject, program) => {
-        const s = parseFloat(score) || 0;
-        const p = program.toLowerCase();
-        if (p.includes('s&m') || p.includes('sme')) {
-            if (subject === 'sci') return s * 1.0;
-            if (subject === 'math') return s * (40/30);
-            if (subject === 'eng') return s * 0.5;
-        } else if (p.includes('gate')) {
-            if (subject === 'sci') return s * 0.875;
-            if (subject === 'math') return s * (35/30);
-            if (subject === 'eng') return s * 0.75;
-        } else if (p.includes('eis')) {
-            if (subject === 'sci') return s * 0.75;
-            if (subject === 'math') return s * 1.0;
-            if (subject === 'eng') return s * 1.0;
-        }
-        return s;
-    };
+    // 2. เตรียมข้อมูล (เพิ่มเงื่อนไข rankingTab === 'pretest' เข้าไป)
+    if (rankingTab === 'all' || rankingTab === 'filtered' || rankingTab === 'pretest') {
+        dataList = [...activeData].sort((a,b) => b.total_score - a.total_score).map((s, i) => ({
+            ...s, 
+            score_to_show: s.total_score,
+            status_text: allocationResult[s.__backendId] ? `ติด ${allocationResult[s.__backendId].program}` : 'ไม่ผ่านเกณฑ์'
+        }));
+        
+        let suffix = "RawData";
+        if(isFilteredMode) suffix = "สรุปคัดกรอง";
+        if(isPretestMode) suffix = "Pre-test(ป.4-5)";
+        
+        fileName = `ประกาศผล_${adminTab}_${suffix}.xlsx`;
 
-    // กรองรายชื่อเฉพาะคนที่ติดโครงการนี้
-    let interviewList = studentsData.filter(s => {
-        const result = allocationResult[s.__backendId];
-        return result && result.program === targetProgramName;
-    });
+    } else {
+        const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
+        const getChoiceRank = (student, prog) => { if (student.choice_1 === prog) return 1; if (student.choice_2 === prog) return 2; if (student.choice_3 === prog) return 3; return 99; };
+        
+        dataList = activeData.filter(s => {
+            const targetRank = getChoiceRank(s, targetProgram);
+            if (targetRank === 99) return false;
+            const officialResult = allocationResult[s.__backendId];
+            if (officialResult && officialResult.program === targetProgram) return true;
+            const officialRank = officialResult ? getChoiceRank(s, officialResult.program) : 99;
+            return targetRank < officialRank; 
+        });
 
-    // คำนวณคะแนน
-    interviewList = interviewList.map(s => {
-        const w_sci = getSubScore(s.science_score, 'sci', targetProgramName);
-        const w_math = getSubScore(s.math_score, 'math', targetProgramName);
-        const w_eng = getSubScore(s.english_score, 'eng', targetProgramName);
-        const written = w_sci + w_math + w_eng;
-        const practical = parseFloat(s.practical_score) || 0;
-        return { 
-            ...s, w_sci, w_math, w_eng, 
-            written_score: written,
-            practical_score: practical, 
-            grand_total: written + practical 
-        };
-    }).sort((a, b) => b.grand_total - a.grand_total);
+        dataList = dataList.map(s => {
+            const officialResult = allocationResult[s.__backendId];
+            const isReal = officialResult && officialResult.program === targetProgram;
+            return {
+                ...s, 
+                score_to_show: getWeightedScore(s, targetProgram),
+                is_real: isReal, 
+                official_result: officialResult, 
+                choice_priority: getChoiceRank(s, targetProgram)
+            };
+        });
 
-    // คำนวณสถานะ ตัวจริง/สำรอง
+        dataList.sort((a, b) => {
+            if (a.is_real && !b.is_real) return -1; if (!a.is_real && b.is_real) return 1;
+            if (!a.is_real && !b.is_real) { if (a.choice_priority !== b.choice_priority) return a.choice_priority - b.choice_priority; }
+            return b.score_to_show - a.score_to_show;
+        });
+        fileName = `ใบรายชื่อ_${adminTab}_${targetProgram}.xlsx`;
+    }
+
+    if (dataList.length === 0) return showAlert('แจ้งเตือน', 'ไม่มีข้อมูล');
+
+    // 3. รันลำดับ
     let currentRank = 1;
-    for (let i = 0; i < interviewList.length; i++) {
+    for (let i = 0; i < dataList.length; i++) {
         if (i > 0) {
-            if (Math.abs(interviewList[i].grand_total - interviewList[i-1].grand_total) < 0.00001) {
-                interviewList[i].final_rank = interviewList[i-1].final_rank;
-            } else {
-                currentRank = i + 1;
-                interviewList[i].final_rank = currentRank;
-            }
-        } else {
-            interviewList[i].final_rank = 1;
-        }
-
-        if (interviewList[i].final_rank <= practicalQuota) {
-            interviewList[i].final_status = 'ตัวจริง';
-        } else {
-            const reserveRank = interviewList[i].final_rank - practicalQuota;
-            interviewList[i].final_status = `สำรอง ${reserveRank}`;
-        }
+            const scoreSame = Math.abs(dataList[i].score_to_show - dataList[i-1].score_to_show) < 0.00001;
+            const statusSame = (rankingTab !== 'all' && rankingTab !== 'filtered' && rankingTab !== 'pretest') ? (dataList[i].is_real === dataList[i-1].is_real) : true;
+            if (scoreSame && statusSame) dataList[i].rank = dataList[i-1].rank;
+            else { currentRank++; dataList[i].rank = currentRank; }
+        } else { dataList[i].rank = 1; }
     }
 
-    if(interviewList.length === 0) return showAlert('แจ้งเตือน', 'ไม่มีข้อมูล');
-
-    // สร้างข้อมูล Excel
-    const excelRows = interviewList.map(s => ({
-        'ลำดับที่': s.final_rank,
-        'รหัสสอบ': s.exam_id,
-        'ชื่อ-สกุล': s.full_name,
-        'วิทย์ (Weight)': s.w_sci.toFixed(2),
-        'คณิต (Weight)': s.w_math.toFixed(2),
-        'อังกฤษ (Weight)': s.w_eng.toFixed(2),
-        'รวมข้อเขียน (100)': s.written_score.toFixed(2),
-        [`คะแนนปฏิบัติ (${maxPractical})`]: s.practical_score.toFixed(2),
-        [`รวมสุทธิ (${maxTotal})`]: s.grand_total.toFixed(2),
-        'ผลการคัดเลือก': s.final_status
+    // 4. สร้าง Excel (5 คอลัมน์)
+    const excelRows = dataList.map(s => ({
+        'ลำดับ': s.rank,
+        'เลขประจำตัวสอบ': s.exam_id,
+        'ชื่อ-นามสกุล': s.full_name,
+        'โรงเรียน': s.previous_school || '-',
+        'หมายเหตุ': ''
     }));
 
-    // สร้างไฟล์
     const ws = XLSX.utils.json_to_sheet(excelRows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Scores");
-    XLSX.writeFile(wb, `คะแนนสอบปฏิบัติ_${targetProgramName}_${adminTab}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "SignatureSheet");
+    XLSX.writeFile(wb, fileName);
 }
 window.addEventListener('load', () => { window.dataSdk.init(dataHandler); render(); });
 // --- ฟังก์ชันย่อย 3: หน้าบันทึกคะแนนปฏิบัติ/สัมภาษณ์ (ฉบับปรับปรุง: สวยงาม + โชว์คะแนนดิบ + แก้บั๊กชื่อหาย) ---
