@@ -2375,21 +2375,31 @@ function savePracticalScores() {
         });
 }
     // --- ฟังก์ชันส่งออกรายงานคะแนนปฏิบัติเป็น Word (แบบละเอียด) ---
-function exportInterviewToWord() {
-    const allocationResult = executeClearingHouse(studentsData, quotas[adminTab]);
-    
+function exportInterviewToExcel() {
+    // 1. เตรียมข้อมูล (แยก ม.1 / ม.4)
+    const m1 = studentsData.filter(s => ['p4','p5','p6','m1'].includes(s.grade_level));
+    const m4 = studentsData.filter(s => ['m3','m4'].includes(s.grade_level));
+    let activeData = adminTab === 'm1' ? m1 : m4;
+
+    // 2. ตรวจสอบ Tab ปัจจุบัน (ถ้าอยู่ที่ All ให้เลือกโครงการแรกเป็น Default)
     const availablePrograms = adminTab === 'm1' ? ['sm', 'gate', 'eis'] : ['sme', 'gate'];
-    if (rankingTab === 'all' || rankingTab === 'filtered' || !availablePrograms.includes(rankingTab)) {
-        rankingTab = availablePrograms[0];
+    let currentTab = rankingTab;
+    if (currentTab === 'all' || currentTab === 'filtered' || !availablePrograms.includes(currentTab)) {
+        currentTab = availablePrograms[0];
     }
 
-    const targetProgramName = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
-    const practicalQuota = 40;
+    // 3. ประมวลผล Clearing House
+    const allocationResult = executeClearingHouse(activeData, quotas[adminTab]);
+
+    // 4. ตั้งค่าตัวแปรตามโครงการ
+    const targetProgramName = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[currentTab];
+    const practicalQuota = 40; // ตัดตัวจริง 40 คน
     
+    // กำหนดคะแนนเต็ม (S&M=20, อื่นๆ=100)
     const maxPractical = (targetProgramName === 'S&M') ? 20 : 100;
     const maxTotal = 100 + maxPractical;
 
-    // Helper (Duplicate แต่จำเป็นต้องมีใน scope นี้)
+    // Helper: คำนวณคะแนนถ่วงน้ำหนัก (Copy มาเพื่อให้ทำงานใน Scope นี้ได้)
     const getSubScore = (score, subject, program) => {
         const s = parseFloat(score) || 0;
         const p = program.toLowerCase();
@@ -2409,11 +2419,13 @@ function exportInterviewToWord() {
         return s;
     };
 
-    let interviewList = studentsData.filter(s => {
+    // 5. กรองรายชื่อเฉพาะคนที่ติดโครงการนี้
+    let interviewList = activeData.filter(s => {
         const result = allocationResult[s.__backendId];
         return result && result.program === targetProgramName;
     });
 
+    // 6. คำนวณคะแนน
     interviewList = interviewList.map(s => {
         const w_sci = getSubScore(s.science_score, 'sci', targetProgramName);
         const w_math = getSubScore(s.math_score, 'math', targetProgramName);
@@ -2428,6 +2440,7 @@ function exportInterviewToWord() {
         };
     }).sort((a, b) => b.grand_total - a.grand_total);
 
+    // 7. คำนวณสถานะ ตัวจริง/สำรอง
     let currentRank = 1;
     for (let i = 0; i < interviewList.length; i++) {
         if (i > 0) {
@@ -2449,91 +2462,27 @@ function exportInterviewToWord() {
         }
     }
 
-    if(interviewList.length === 0) return showAlert('แจ้งเตือน', 'ไม่มีข้อมูล');
+    if(interviewList.length === 0) return showAlert('แจ้งเตือน', 'ไม่มีข้อมูลในหมวดนี้');
 
-    const tableRows = interviewList.map((s, i) => `
-        <tr>
-            <td style="text-align:center;">${s.final_rank}</td>
-            <td style="text-align:center;">${s.exam_id}</td>
-            <td>${s.full_name}</td>
-            <td style="text-align:center;">${s.w_sci.toFixed(2)}</td>
-            <td style="text-align:center;">${s.w_math.toFixed(2)}</td>
-            <td style="text-align:center;">${s.w_eng.toFixed(2)}</td>
-            <td style="text-align:center; font-weight:bold;">${s.written_score.toFixed(2)}</td>
-            <td style="text-align:center; font-weight:bold;">${s.practical_score.toFixed(2)}</td>
-            <td style="text-align:center; font-weight:bold; background-color:#f9f9f9;">${s.grand_total.toFixed(2)}</td>
-            <td style="text-align:center;">${s.final_status}</td>
-        </tr>
-    `).join('');
+    // 8. สร้างข้อมูล Excel
+    const excelRows = interviewList.map(s => ({
+        'ลำดับที่': s.final_rank,
+        'รหัสสอบ': s.exam_id,
+        'ชื่อ-สกุล': s.full_name,
+        'วิทย์ (Weight)': s.w_sci.toFixed(2),
+        'คณิต (Weight)': s.w_math.toFixed(2),
+        'อังกฤษ (Weight)': s.w_eng.toFixed(2),
+        'รวมข้อเขียน (100)': s.written_score.toFixed(2),
+        [`คะแนนปฏิบัติ (${maxPractical})`]: s.practical_score.toFixed(2),
+        [`รวมสุทธิ (${maxTotal})`]: s.grand_total.toFixed(2),
+        'ผลการคัดเลือก': s.final_status
+    }));
 
-    const title = `แบบบันทึกคะแนนสอบคัดเลือก (รอบปฏิบัติ/สัมภาษณ์) โครงการ ${targetProgramName} - ${adminTab==='m1'?'ม.1':'ม.4'}`;
-    
-    const docContent = `
-        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-        <head><meta charset='utf-8'><title>${title}</title>
-        <style>
-            body { font-family: 'TH Sarabun New', 'Angsana New', sans-serif; font-size: 16pt; }
-            table { border-collapse: collapse; width: 100%; margin-top: 15px; font-size: 14pt; }
-            td, th { border: 1px solid #000; padding: 4px; vertical-align: middle; }
-            th { background-color: #f0f0f0; text-align: center; font-weight: bold; }
-            .header { text-align: center; margin-bottom: 20px; }
-        </style>
-        </head><body>
-        
-        <div class="header">
-            <img src="https://img2.pic.in.th/pic/-69-1.png" width="70" height="auto"><br>
-            <b>แบบสรุปผลคะแนนการสอบคัดเลือกนักเรียนห้องเรียนพิเศษ (รอบสัมภาษณ์/ปฏิบัติ)</b><br>
-            โครงการ ${targetProgramName} ระดับชั้นมัธยมศึกษาปีที่ ${adminTab==='m1'?'๑':'๔'}<br>
-            ประจำปีการศึกษา ${window.elementSdk?.config?.admission_year || '๒๕๖๙'}
-        </div>
-
-        <table>
-            <thead>
-                <tr>
-                    <th rowspan="2" width="5%">ที่</th>
-                    <th rowspan="2" width="10%">รหัสสอบ</th>
-                    <th rowspan="2" width="20%">ชื่อ - สกุล</th>
-                    <th colspan="4">คะแนนสอบข้อเขียน (Weighted Score 100)</th>
-                    <th rowspan="2" width="10%">ปฏิบัติ<br>(${maxPractical})</th>
-                    <th rowspan="2" width="10%">รวมสุทธิ<br>(${maxTotal})</th>
-                    <th rowspan="2" width="10%">ผลการ<br>คัดเลือก</th>
-                </tr>
-                <tr>
-                    <th width="7%">วิทย์</th>
-                    <th width="7%">คณิต</th>
-                    <th width="7%">อังกฤษ</th>
-                    <th width="8%">รวม</th>
-                </tr>
-            </thead>
-            <tbody>${tableRows}</tbody>
-        </table>
-
-        <div style="margin-top: 40px; width: 100%; text-align: center;">
-            <table style="border:none; width:100%">
-                <tr style="border:none;">
-                    <td style="border:none; text-align:center;">ลงชื่อ................................................กรรมการ<br>(................................................)</td>
-                    <td style="border:none; text-align:center;">ลงชื่อ................................................กรรมการ<br>(................................................)</td>
-                </tr>
-                <tr style="border:none;">
-                    <td colspan="2" style="border:none; text-align:center; padding-top: 30px;">
-                        ลงชื่อ................................................ประธานกรรมการ<br>
-                        (................................................)
-                    </td>
-                </tr>
-            </table>
-        </div>
-        
-        </body></html>
-    `;
-
-    const blob = new Blob(['\ufeff', docContent], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${title}.doc`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // 9. สร้างไฟล์และดาวน์โหลด
+    const ws = XLSX.utils.json_to_sheet(excelRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Scores");
+    XLSX.writeFile(wb, `คะแนนสอบปฏิบัติ_${targetProgramName}_${adminTab}.xlsx`);
 }
 </script>
 </body>
