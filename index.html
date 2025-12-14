@@ -1147,7 +1147,13 @@ function exportToWord() {
     let titleProgram = "";
 
     if (rankingTab === 'all' || rankingTab === 'filtered' || rankingTab === 'pretest') {
-        dataList = [...activeData].sort((a,b) => b.total_score - a.total_score).map((s, i) => ({...s, score_to_show: s.total_score}));
+        dataList = [...activeData].sort((a,b) => b.total_score - a.total_score).map((s, i) => ({
+            ...s, 
+            score_to_show: s.total_score,
+            raw_sci: parseFloat(s.science_score)||0,
+            raw_math: parseFloat(s.math_score)||0,
+            raw_eng: parseFloat(s.english_score)||0
+        }));
         
         titleProgram = `สรุปภาพรวม ${isFilteredMode ? '(คัดกรอง)' : '(ทั้งหมด)'}`;
         if(isPretestMode) titleProgram = "สรุปคะแนน Pre-test (เฉพาะ ป.4-5)";
@@ -1191,15 +1197,58 @@ function exportToWord() {
         } else { dataList[i].rank = 1; }
     }
 
-    const tableRows = dataList.map(s => `
-        <tr>
-            <td style="text-align:center;">${s.rank}</td>
-            <td style="text-align:center;">${s.exam_id}</td>
-            <td>${s.full_name}</td>
-            <td>${s.previous_school || '-'}</td>
-            <td></td>
-        </tr>
-    `).join('');
+    // --- สร้าง HTML Table ---
+    let tableHeader = "";
+    let tableBody = "";
+
+    if (isPretestMode) {
+        // *** ตารางคะแนนสำหรับ Pre-test ***
+        tableHeader = `
+            <tr>
+                <th width="8%">ลำดับ</th>
+                <th width="15%">เลขประจำตัวสอบ</th>
+                <th width="25%">ชื่อ - นามสกุล</th>
+                <th width="20%">โรงเรียน</th>
+                <th width="8%">วิทย์</th>
+                <th width="8%">คณิต</th>
+                <th width="8%">อังกฤษ</th>
+                <th width="8%">รวม</th>
+            </tr>
+        `;
+        tableBody = dataList.map(s => `
+            <tr>
+                <td style="text-align:center;">${s.rank}</td>
+                <td style="text-align:center;">${s.exam_id}</td>
+                <td>${s.full_name}</td>
+                <td>${s.previous_school || '-'}</td>
+                <td style="text-align:center;">${s.raw_sci}</td>
+                <td style="text-align:center;">${s.raw_math}</td>
+                <td style="text-align:center;">${s.raw_eng}</td>
+                <td style="text-align:center; font-weight:bold;">${s.score_to_show.toFixed(2)}</td>
+            </tr>
+        `).join('');
+
+    } else {
+        // *** ตาราง 5 คอลัมน์ สำหรับอื่นๆ ***
+        tableHeader = `
+            <tr>
+                <th width="8%">ลำดับ</th>
+                <th width="15%">เลขประจำตัวสอบ</th>
+                <th width="35%">ชื่อ - นามสกุล</th>
+                <th width="27%">โรงเรียน</th>
+                <th width="15%">หมายเหตุ</th>
+            </tr>
+        `;
+        tableBody = dataList.map(s => `
+            <tr>
+                <td style="text-align:center;">${s.rank}</td>
+                <td style="text-align:center;">${s.exam_id}</td>
+                <td>${s.full_name}</td>
+                <td>${s.previous_school || '-'}</td>
+                <td></td>
+            </tr>
+        `).join('');
+    }
 
     const docContent = `
         <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -1216,21 +1265,13 @@ function exportToWord() {
         <div class="header">
             <img src="https://img2.pic.in.th/pic/d73e30e222a61a2282bfaff6919fa6ec.png" width="80" height="auto"><br>
             <b>โรงเรียนบางสะพานวิทยา</b><br>
-            แบบลงชื่อผู้มีสิทธิ์สอบปฏิบัติ ห้องเรียนโครงการ ${titleProgram}<br>
+            ${isPretestMode ? 'สรุปผลคะแนนการสอบ (Pre-test)' : 'แบบลงชื่อผู้มีสิทธิ์สอบปฏิบัติ'} ${titleProgram}<br>
             การแข่งขันทักษะทางวิชาการเพชรราชพฤกษ์ ประจำปีการศึกษา 2569
         </div>
 
         <table>
-            <thead>
-                <tr>
-                    <th width="8%">ลำดับ</th>
-                    <th width="15%">เลขประจำตัวสอบ</th>
-                    <th width="35%">ชื่อ-นามสกุล</th>
-                    <th width="25%">โรงเรียน</th>
-                    <th width="15%">หมายเหตุ</th>
-                </tr>
-            </thead>
-            <tbody>${tableRows}</tbody>
+            <thead>${tableHeader}</thead>
+            <tbody>${tableBody}</tbody>
         </table>
         </body></html>
     `;
@@ -1853,10 +1894,10 @@ function exportRankingToExcel() {
     const m4 = studentsData.filter(s => ['m3','m4'].includes(s.grade_level));
     let activeData = adminTab === 'm1' ? m1 : m4;
 
-    // 1. ตรวจสอบโหมด Filter / Pretest
     let isFilteredMode = false;
     let isPretestMode = false;
 
+    // ตรวจสอบโหมด
     if (rankingTab === 'filtered') {
         if (adminTab === 'm1') activeData = activeData.filter(s => !['p4', 'p5'].includes(s.grade_level));
         isFilteredMode = true;
@@ -1869,21 +1910,25 @@ function exportRankingToExcel() {
     let dataList = [];
     let fileName = "";
 
-    // 2. เตรียมข้อมูล (เพิ่มเงื่อนไข rankingTab === 'pretest' เข้าไป)
+    // 1. เตรียมข้อมูล
     if (rankingTab === 'all' || rankingTab === 'filtered' || rankingTab === 'pretest') {
         dataList = [...activeData].sort((a,b) => b.total_score - a.total_score).map((s, i) => ({
             ...s, 
             score_to_show: s.total_score,
+            // เพิ่มฟิลด์คะแนนดิบสำหรับ Export
+            raw_sci: parseFloat(s.science_score)||0,
+            raw_math: parseFloat(s.math_score)||0,
+            raw_eng: parseFloat(s.english_score)||0,
             status_text: allocationResult[s.__backendId] ? `ติด ${allocationResult[s.__backendId].program}` : 'ไม่ผ่านเกณฑ์'
         }));
         
         let suffix = "RawData";
         if(isFilteredMode) suffix = "สรุปคัดกรอง";
         if(isPretestMode) suffix = "Pre-test(ป.4-5)";
-        
         fileName = `ประกาศผล_${adminTab}_${suffix}.xlsx`;
 
     } else {
+        // แยกโครงการ
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
         const getChoiceRank = (student, prog) => { if (student.choice_1 === prog) return 1; if (student.choice_2 === prog) return 2; if (student.choice_3 === prog) return 3; return 99; };
         
@@ -1902,9 +1947,7 @@ function exportRankingToExcel() {
             return {
                 ...s, 
                 score_to_show: getWeightedScore(s, targetProgram),
-                is_real: isReal, 
-                official_result: officialResult, 
-                choice_priority: getChoiceRank(s, targetProgram)
+                is_real: isReal, official_result: officialResult, choice_priority: getChoiceRank(s, targetProgram)
             };
         });
 
@@ -1918,7 +1961,7 @@ function exportRankingToExcel() {
 
     if (dataList.length === 0) return showAlert('แจ้งเตือน', 'ไม่มีข้อมูล');
 
-    // 3. รันลำดับ
+    // 2. รันลำดับ
     let currentRank = 1;
     for (let i = 0; i < dataList.length; i++) {
         if (i > 0) {
@@ -1929,18 +1972,35 @@ function exportRankingToExcel() {
         } else { dataList[i].rank = 1; }
     }
 
-    // 4. สร้าง Excel (5 คอลัมน์)
-    const excelRows = dataList.map(s => ({
-        'ลำดับ': s.rank,
-        'เลขประจำตัวสอบ': s.exam_id,
-        'ชื่อ-นามสกุล': s.full_name,
-        'โรงเรียน': s.previous_school || '-',
-        'หมายเหตุ': ''
-    }));
+    // 3. สร้าง Excel Rows (แยกกรณี Pre-test)
+    let excelRows = [];
+
+    if (isPretestMode) {
+        // *** กรณี Pre-test: โชว์คะแนน ***
+        excelRows = dataList.map(s => ({
+            'ลำดับ': s.rank,
+            'เลขประจำตัวสอบ': s.exam_id,
+            'ชื่อ-นามสกุล': s.full_name,
+            'โรงเรียน': s.previous_school || '-',
+            'วิทย์ (40)': s.raw_sci,
+            'คณิต (30)': s.raw_math,
+            'อังกฤษ (40)': s.raw_eng,
+            'รวม (110)': s.score_to_show.toFixed(2)
+        }));
+    } else {
+        // *** กรณีอื่นๆ: โชว์ 5 คอลัมน์ (ใบเซ็นชื่อ) ***
+        excelRows = dataList.map(s => ({
+            'ลำดับ': s.rank,
+            'เลขประจำตัวสอบ': s.exam_id,
+            'ชื่อ-นามสกุล': s.full_name,
+            'โรงเรียน': s.previous_school || '-',
+            'หมายเหตุ': ''
+        }));
+    }
 
     const ws = XLSX.utils.json_to_sheet(excelRows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "SignatureSheet");
+    XLSX.utils.book_append_sheet(wb, ws, isPretestMode ? "ScoreSheet" : "SignatureSheet");
     XLSX.writeFile(wb, fileName);
 }
 window.addEventListener('load', () => { window.dataSdk.init(dataHandler); render(); });
