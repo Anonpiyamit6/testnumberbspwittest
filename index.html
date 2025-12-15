@@ -859,13 +859,11 @@ function renderRankingView(allStudents) {
     let isFilteredMode = false;
     let isPretestMode = false;
 
-    // 1. ตรวจสอบโหมดการกรอง
+    // 1. ตรวจสอบโหมด
     if (rankingTab === 'filtered') {
         if (adminTab === 'm1') processingData = allStudents.filter(s => !['p4', 'p5'].includes(s.grade_level));
         isFilteredMode = true;
-    } 
-    // --- เงื่อนไข Pre-test ---
-    else if (rankingTab === 'pretest') {
+    } else if (rankingTab === 'pretest') {
         if (adminTab === 'm1') processingData = allStudents.filter(s => ['p4', 'p5'].includes(s.grade_level));
         isPretestMode = true;
     } else if (rankingTab === 'pretest_p4') {
@@ -874,11 +872,9 @@ function renderRankingView(allStudents) {
     } else if (rankingTab === 'pretest_p5') {
         if (adminTab === 'm1') processingData = allStudents.filter(s => s.grade_level === 'p5');
         isPretestMode = true;
-    } 
-    // 🔥 เพิ่มเงื่อนไข ป.6 🔥
-    else if (rankingTab === 'pretest_p6') {
+    } else if (rankingTab === 'pretest_p6') {
         if (adminTab === 'm1') processingData = allStudents.filter(s => s.grade_level === 'p6');
-        isPretestMode = true; 
+        isPretestMode = true;
     }
 
     const allocationResult = executeClearingHouse(processingData, quotas[adminTab]);
@@ -887,21 +883,13 @@ function renderRankingView(allStudents) {
     let showQuota = 0;
     let scoreLabel = "คะแนนรวม";
     let subScoreType = "(ดิบ)";
-    
-    // ตั้งชื่อหัวข้อ
     let title = "จัดลำดับคะแนน (Raw Data)";
     if (isFilteredMode) title = "สรุปผลคัดเลือก (ตัด Pre-test)";
-    if (rankingTab === 'pretest') title = "สรุปคะแนน Pre-test (ป.4-5 รวม)";
-    if (rankingTab === 'pretest_p4') title = "สรุปคะแนน Pre-test (เฉพาะ ป.4)";
-    if (rankingTab === 'pretest_p5') title = "สรุปคะแนน Pre-test (เฉพาะ ป.5)";
-    if (rankingTab === 'pretest_p6') title = "สรุปคะแนน Pre-test (เฉพาะ ป.6)"; // 🔥
+    if (rankingTab.startsWith('pretest')) title = "สรุปคะแนน Pre-test";
 
-    // Helper: คำนวณคะแนนย่อย
     const getSubScore = (score, subject, program) => {
         const s = parseFloat(score) || 0;
-        // กรณีภาพรวม หรือ Pre-test ให้คืนค่าคะแนนดิบ
         if (['all', 'filtered', 'pretest', 'pretest_p4', 'pretest_p5', 'pretest_p6'].includes(program)) return s;
-
         const p = program.toLowerCase();
         if (p.includes('s&m') || p.includes('sme')) {
             if (subject === 'sci') return s * 1.0;
@@ -920,19 +908,15 @@ function renderRankingView(allStudents) {
     };
 
     if (['all', 'filtered', 'pretest', 'pretest_p4', 'pretest_p5', 'pretest_p6'].includes(rankingTab)) {
-        // === โหมดแสดงคะแนนดิบ ===
+        // === โหมดภาพรวม (เรียงตามคะแนนดิบ) ===
         scoreLabel = "คะแนนรวม (110)";
         subScoreType = "(ดิบ)";
-
         renderList = [...processingData].sort((a,b) => b.total_score - a.total_score).map((s, i) => {
             const result = allocationResult[s.__backendId];
             return {
                 ...s,
-                show_sci: s.science_score,
-                show_math: s.math_score,
-                show_eng: s.english_score,
+                show_sci: s.science_score, show_math: s.math_score, show_eng: s.english_score,
                 display_score: s.total_score,
-                
                 status_type: result ? 'pass' : 'fail',
                 status_text: result ? `ติด ${result.program}` : 'ไม่ผ่านเกณฑ์',
                 got_program: result ? result.program : '-'
@@ -941,20 +925,12 @@ function renderRankingView(allStudents) {
         
         let currentRank = 1;
         for (let i = 0; i < renderList.length; i++) {
-            if (i > 0) {
-                if (Math.abs(renderList[i].display_score - renderList[i-1].display_score) < 0.001) {
-                    renderList[i].rank = renderList[i-1].rank;
-                } else {
-                    currentRank++;
-                    renderList[i].rank = currentRank;
-                }
-            } else {
-                renderList[i].rank = 1;
-            }
+            if (i > 0 && Math.abs(renderList[i].display_score - renderList[i-1].display_score) < 0.001) renderList[i].rank = renderList[i-1].rank;
+            else { currentRank++; renderList[i].rank = currentRank; }
         }
 
     } else {
-        // === แยกโครงการ (คะแนนถ่วงน้ำหนัก) ===
+        // === แยกโครงการ (เรียงสำรองตามคะแนน) ===
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
         showQuota = (quotas[adminTab] && quotas[adminTab][targetProgram]) || 0;
         scoreLabel = "คะแนนร้อยละ";
@@ -971,15 +947,14 @@ function renderRankingView(allStudents) {
             const targetRank = getChoiceRank(s, targetProgram);
             if (targetRank === 99) return false;
             const officialResult = allocationResult[s.__backendId];
-            if (officialResult && officialResult.program === targetProgram) return true;
+            if (officialResult && officialResult.program === targetProgram) return true; // ตัวจริง
             const officialRank = officialResult ? getChoiceRank(s, officialResult.program) : 99;
-            return targetRank < officialRank; 
+            return targetRank < officialRank; // สำรอง (เลือกไว้สูงกว่าที่ได้)
         });
 
         renderList = renderList.map(s => {
             const officialResult = allocationResult[s.__backendId];
             const isReal = officialResult && officialResult.program === targetProgram;
-            
             const w_sci = getSubScore(s.science_score, 'sci', targetProgram);
             const w_math = getSubScore(s.math_score, 'math', targetProgram);
             const w_eng = getSubScore(s.english_score, 'eng', targetProgram);
@@ -987,9 +962,7 @@ function renderRankingView(allStudents) {
 
             return {
                 ...s,
-                show_sci: w_sci,
-                show_math: w_math,
-                show_eng: w_eng,
+                show_sci: w_sci, show_math: w_math, show_eng: w_eng,
                 display_score: w_total,
                 is_real: isReal,
                 official_result: officialResult,
@@ -997,12 +970,13 @@ function renderRankingView(allStudents) {
             };
         });
 
+        // 🔥 แก้ไขการเรียงลำดับตรงนี้ 🔥
         renderList.sort((a, b) => {
+            // 1. ตัวจริง (Pass) ต้องอยู่บนสุดเสมอ
             if (a.is_real && !b.is_real) return -1;
             if (!a.is_real && b.is_real) return 1;
-            if (!a.is_real && !b.is_real) {
-                if (a.choice_priority !== b.choice_priority) return a.choice_priority - b.choice_priority;
-            }
+            
+            // 2. ถ้าเป็นสำรองเหมือนกัน -> วัดกันที่คะแนนเลย (ไม่สนว่าเลือกอันดับ 1,2,3)
             return b.display_score - a.display_score;
         });
 
@@ -1011,17 +985,9 @@ function renderRankingView(allStudents) {
             if (i > 0) {
                 const scoreSame = Math.abs(renderList[i].display_score - renderList[i-1].display_score) < 0.00001;
                 const statusSame = (renderList[i].is_real === renderList[i-1].is_real);
-                const choiceSame = (renderList[i].choice_priority === renderList[i-1].choice_priority);
-
-                if (scoreSame && statusSame && choiceSame) {
-                    renderList[i].rank = renderList[i-1].rank;
-                } else {
-                    currentRank++;
-                    renderList[i].rank = currentRank;
-                }
-            } else {
-                renderList[i].rank = 1;
-            }
+                if (scoreSame && statusSame) renderList[i].rank = renderList[i-1].rank;
+                else { currentRank++; renderList[i].rank = currentRank; }
+            } else { renderList[i].rank = 1; }
 
             if (renderList[i].is_real) {
                 renderList[i].status_type = 'pass';
@@ -1029,14 +995,13 @@ function renderRankingView(allStudents) {
             } else {
                 renderList[i].status_type = 'reserve';
                 const other = renderList[i].official_result;
-                let text = `สำรอง (เลือกอันดับ ${renderList[i].choice_priority})`;
-                if (other) text += ` ติด ${other.program}`;
+                let text = `สำรอง`; // ลดข้อความให้สั้นลง หรือจะใส่รายละเอียดก็ได้
+                if (other) text += ` (ติด ${other.program})`; // บอกว่าติดที่อื่นแล้ว
                 renderList[i].status_text = text;
             }
         }
     }
 
-    // --- สร้างปุ่ม Tabs (เพิ่มปุ่ม Pre-test ป.6) ---
     let tabs = [];
     if (adminTab === 'm1') {
         tabs = [
@@ -1045,17 +1010,13 @@ function renderRankingView(allStudents) {
             { id: 'pretest', label: 'Pre-test (รวม)' },
             { id: 'pretest_p4', label: 'Pre-test (ป.4)' },
             { id: 'pretest_p5', label: 'Pre-test (ป.5)' },
-            { id: 'pretest_p6', label: 'Pre-test (ป.6)' }, // 🔥 ปุ่มใหม่
+            { id: 'pretest_p6', label: 'Pre-test (ป.6)' },
             { id: 'sm', label: 'S&M' },
             { id: 'gate', label: 'GATE' },
             { id: 'eis', label: 'EIS' }
         ];
     } else {
-        tabs = [
-            { id: 'all', label: 'ทั้งหมด (Raw)' },
-            { id: 'sme', label: 'SME' },
-            { id: 'gate', label: 'GATE' }
-        ];
+        tabs = [{ id: 'all', label: 'ทั้งหมด (Raw)' }, { id: 'sme', label: 'SME' }, { id: 'gate', label: 'GATE' }];
     }
 
     return `
@@ -1155,7 +1116,7 @@ function exportToWord() {
     } else if (rankingTab === 'pretest_p5') {
         if (adminTab === 'm1') activeData = activeData.filter(s => s.grade_level === 'p5');
         isPretestMode = true;
-    } else if (rankingTab === 'pretest_p6') { // 🔥
+    } else if (rankingTab === 'pretest_p6') {
         if (adminTab === 'm1') activeData = activeData.filter(s => s.grade_level === 'p6');
         isPretestMode = true;
     }
@@ -1177,7 +1138,7 @@ function exportToWord() {
         if(rankingTab === 'pretest') titleProgram = "สรุปคะแนน Pre-test (รวม ป.4-5)";
         if(rankingTab === 'pretest_p4') titleProgram = "สรุปคะแนน Pre-test (เฉพาะ ป.4)";
         if(rankingTab === 'pretest_p5') titleProgram = "สรุปคะแนน Pre-test (เฉพาะ ป.5)";
-        if(rankingTab === 'pretest_p6') titleProgram = "สรุปคะแนน Pre-test (เฉพาะ ป.6)"; // 🔥
+        if(rankingTab === 'pretest_p6') titleProgram = "สรุปคะแนน Pre-test (เฉพาะ ป.6)";
 
     } else {
         const targetProgram = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
@@ -1198,9 +1159,9 @@ function exportToWord() {
             return { ...s, score_to_show: getWeightedScore(s, targetProgram), is_real: isReal, official_result: officialResult, choice_priority: getChoiceRank(s, targetProgram) };
         });
 
+        // 🔥 แก้ไขการเรียงลำดับตรงนี้ 🔥
         dataList.sort((a, b) => {
             if (a.is_real && !b.is_real) return -1; if (!a.is_real && b.is_real) return 1;
-            if (!a.is_real && !b.is_real) { if (a.choice_priority !== b.choice_priority) return a.choice_priority - b.choice_priority; }
             return b.score_to_show - a.score_to_show;
         });
         titleProgram = targetProgram;
@@ -1216,6 +1177,14 @@ function exportToWord() {
             if (scoreSame && statusSame) dataList[i].rank = dataList[i-1].rank;
             else { currentRank++; dataList[i].rank = currentRank; }
         } else { dataList[i].rank = 1; }
+        
+        if (!isPretestMode && !isFilteredMode && rankingTab !== 'all') {
+            if (dataList[i].is_real) dataList[i].status_text = 'ผ่านเกณฑ์โครงการ';
+            else {
+                const other = dataList[i].official_result;
+                dataList[i].status_text = other ? `สำรอง (ติด ${other.program})` : 'สำรอง';
+            }
+        }
     }
 
     let tableHeader = "";
@@ -1914,7 +1883,6 @@ function exportRankingToExcel() {
     let isFilteredMode = false;
     let isPretestMode = false;
 
-    // 1. ตรวจสอบโหมด
     if (rankingTab === 'filtered') {
         if (adminTab === 'm1') activeData = activeData.filter(s => !['p4', 'p5'].includes(s.grade_level));
         isFilteredMode = true;
@@ -1927,7 +1895,7 @@ function exportRankingToExcel() {
     } else if (rankingTab === 'pretest_p5') {
         if (adminTab === 'm1') activeData = activeData.filter(s => s.grade_level === 'p5');
         isPretestMode = true;
-    } else if (rankingTab === 'pretest_p6') { // 🔥
+    } else if (rankingTab === 'pretest_p6') {
         if (adminTab === 'm1') activeData = activeData.filter(s => s.grade_level === 'p6');
         isPretestMode = true;
     }
@@ -1936,7 +1904,6 @@ function exportRankingToExcel() {
     let dataList = [];
     let fileName = "";
 
-    // 2. เตรียมข้อมูล
     if (rankingTab === 'all' || isFilteredMode || isPretestMode) {
         dataList = [...activeData].sort((a,b) => b.total_score - a.total_score).map((s, i) => ({
             ...s, 
@@ -1952,8 +1919,7 @@ function exportRankingToExcel() {
         if(rankingTab === 'pretest') suffix = "Pre-test(รวม)";
         if(rankingTab === 'pretest_p4') suffix = "Pre-test(ป.4)";
         if(rankingTab === 'pretest_p5') suffix = "Pre-test(ป.5)";
-        if(rankingTab === 'pretest_p6') suffix = "Pre-test(ป.6)"; // 🔥
-        
+        if(rankingTab === 'pretest_p6') suffix = "Pre-test(ป.6)";
         fileName = `ประกาศผล_${adminTab}_${suffix}.xlsx`;
 
     } else {
@@ -1981,9 +1947,11 @@ function exportRankingToExcel() {
             };
         });
 
+        // 🔥 แก้ไขการเรียงลำดับตรงนี้ 🔥
         dataList.sort((a, b) => {
-            if (a.is_real && !b.is_real) return -1; if (!a.is_real && b.is_real) return 1;
-            if (!a.is_real && !b.is_real) { if (a.choice_priority !== b.choice_priority) return a.choice_priority - b.choice_priority; }
+            if (a.is_real && !b.is_real) return -1;
+            if (!a.is_real && b.is_real) return 1;
+            // เรียงตามคะแนนอย่างเดียว
             return b.score_to_show - a.score_to_show;
         });
         fileName = `ใบรายชื่อ_${adminTab}_${targetProgram}.xlsx`;
@@ -1991,7 +1959,6 @@ function exportRankingToExcel() {
 
     if (dataList.length === 0) return showAlert('แจ้งเตือน', 'ไม่มีข้อมูล');
 
-    // 3. รันลำดับ
     let currentRank = 1;
     for (let i = 0; i < dataList.length; i++) {
         if (i > 0) {
@@ -2000,9 +1967,16 @@ function exportRankingToExcel() {
             if (scoreSame && statusSame) dataList[i].rank = dataList[i-1].rank;
             else { currentRank++; dataList[i].rank = currentRank; }
         } else { dataList[i].rank = 1; }
+        
+        if (!isPretestMode && !isFilteredMode && rankingTab !== 'all') {
+            if (dataList[i].is_real) dataList[i].status_text = 'ผ่านเกณฑ์โครงการ';
+            else {
+                const other = dataList[i].official_result;
+                dataList[i].status_text = other ? `สำรอง (ติด ${other.program})` : 'สำรอง';
+            }
+        }
     }
 
-    // 4. สร้าง Excel Rows
     let excelRows = [];
     if (isPretestMode) {
         excelRows = dataList.map(s => ({
