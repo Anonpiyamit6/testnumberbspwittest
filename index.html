@@ -421,52 +421,15 @@ const quotas = {
     // --- Global Variable: เก็บข้อมูลการย้ายรายชื่อ (Manual Overrides) ---
 // รูปแบบ: { 'backendId': 'ProgramName' } เช่น { 'user123': 'S&M', 'user456': 'REMOVED' }
 let interviewOverrides = JSON.parse(localStorage.getItem('admission_interview_overrides')) || {};
-
 let interviewCheckedIds = new Set(); 
 let addModalSelectedIds = new Set(); 
 
-// ฟังก์ชันช่วยบันทึกลง Storage
+// ฟังก์ชันบันทึกลง Storage
 function saveOverridesToStorage() {
     localStorage.setItem('admission_interview_overrides', JSON.stringify(interviewOverrides));
 }
 
-// ฟังก์ชันเพิ่มรายชื่อเข้าโครงการ (ทีละคน หรือจาก Modal)
-function addStudentToProject(id, program) {
-    interviewOverrides[id] = program;
-    saveOverridesToStorage(); // บันทึก
-    
-    // ถ้ามาจากหน้า Modal ปิดด้วย
-    const modal = document.getElementById('add-student-modal');
-    if(modal) closeAddStudentModal();
-
-    renderAdminDashboard(); 
-    showAlert('สำเร็จ', `เพิ่มรายชื่อเข้าสู่โครงการ ${program} เรียบร้อยแล้ว`);
-}
-
-// ฟังก์ชันยืนยันเพิ่มหลายคน (จาก Modal)
-function confirmAddStudents(program) {
-    if(addModalSelectedIds.size === 0) return;
-    
-    addModalSelectedIds.forEach(id => {
-        interviewOverrides[id] = program;
-    });
-    
-    saveOverridesToStorage(); // บันทึก
-    
-    closeAddStudentModal();
-    renderAdminDashboard();
-    showAlert('สำเร็จ', `เพิ่มรายชื่อ ${addModalSelectedIds.size} คน เรียบร้อยแล้ว`);
-    addModalSelectedIds.clear();
-}
-
-// ฟังก์ชันลบรายชื่อออกจากโครงการ (รายคน)
-function removeStudentFromProject(id) {
-    if(confirm('ต้องการลบรายชื่อนี้ออกจากโครงการใช่หรือไม่?')) {
-        interviewOverrides[id] = 'REMOVED'; 
-        saveOverridesToStorage(); // บันทึก
-        renderAdminDashboard();
-    }
-}
+// ... (ฟังก์ชัน addStudentToProject, confirmAddStudents, removeStudentFromProject เดิม คงไว้เหมือนเดิม) ...
 
 // ฟังก์ชันลบรายชื่อหลายคน (Bulk Delete)
 function deleteSelectedInterviews() {
@@ -475,7 +438,7 @@ function deleteSelectedInterviews() {
         interviewCheckedIds.forEach(id => {
             interviewOverrides[id] = 'REMOVED';
         });
-        saveOverridesToStorage(); // บันทึก
+        saveOverridesToStorage();
         
         interviewCheckedIds.clear();
         renderAdminDashboard();
@@ -483,7 +446,7 @@ function deleteSelectedInterviews() {
     }
 }
 
-// ฟังก์ชัน Toggle Checkbox ในหน้าตารางหลัก
+// ฟังก์ชัน Toggle รายคน
 function toggleInterviewCheck(id) {
     if (interviewCheckedIds.has(id)) {
         interviewCheckedIds.delete(id);
@@ -491,6 +454,39 @@ function toggleInterviewCheck(id) {
         interviewCheckedIds.add(id);
     }
     updateBulkDeleteButton();
+    updateSelectAllCheckboxState(); // อัปเดตสถานะหัวตาราง
+}
+
+// 🔥 ฟังก์ชันใหม่: เลือกทั้งหมด 🔥
+function toggleSelectAllInterviews(source) {
+    const checkboxes = document.querySelectorAll('.interview-checkbox');
+    interviewCheckedIds.clear();
+
+    if (source.checked) {
+        checkboxes.forEach(cb => {
+            // เลือกเฉพาะแถวที่มองเห็นอยู่ (เผื่อกรณีค้นหาอยู่)
+            if (cb.closest('tr').style.display !== 'none') {
+                cb.checked = true;
+                interviewCheckedIds.add(cb.getAttribute('data-id'));
+            }
+        });
+    } else {
+        checkboxes.forEach(cb => {
+            cb.checked = false;
+        });
+    }
+    updateBulkDeleteButton();
+}
+
+// เช็คสถานะ Checkbox หัวตาราง (ถ้าเลือกครบให้ติ๊กถูก)
+function updateSelectAllCheckboxState() {
+    const all = document.querySelectorAll('.interview-checkbox');
+    const allCount = Array.from(all).filter(cb => cb.closest('tr').style.display !== 'none').length;
+    const headerCheckbox = document.getElementById('select-all-interviews');
+    
+    if (headerCheckbox) {
+        headerCheckbox.checked = (allCount > 0 && interviewCheckedIds.size === allCount);
+    }
 }
 
 function updateBulkDeleteButton() {
@@ -2212,12 +2208,13 @@ function filterInterviewTable() {
     });
 }
 function renderInterviewView(allStudents) {
-    // 1. Logic เดิม (Allocation + Filtering)
     const allocationResult = executeClearingHouse(allStudents, quotas[adminTab]);
+    
     const availablePrograms = adminTab === 'm1' ? ['sm', 'gate', 'eis'] : ['sme', 'gate'];
     if (rankingTab === 'all' || rankingTab === 'filtered' || !availablePrograms.includes(rankingTab)) {
         rankingTab = availablePrograms[0];
     }
+
     const targetProgramName = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
     const practicalQuota = 40; 
     const maxPractical = (targetProgramName === 'S&M') ? 20 : 100;
@@ -2244,7 +2241,6 @@ function renderInterviewView(allStudents) {
 
     let interviewList = allStudents.filter(s => {
         const id = s.__backendId;
-        // เช็คการ Override ก่อน
         if (interviewOverrides[id]) {
             if (interviewOverrides[id] === targetProgramName) return true;
             return false;
@@ -2342,7 +2338,9 @@ function renderInterviewView(allStudents) {
                 <thead>
                     <tr class="bg-gray-50 text-gray-500 text-xs uppercase font-bold tracking-wider">
                         <th class="px-4 py-4 w-10 text-center border-b border-gray-100">
-                            </th>
+                            <input type="checkbox" id="select-all-interviews" onclick="toggleSelectAllInterviews(this)" 
+                                class="w-4 h-4 rounded border-gray-300 text-red-500 focus:ring-red-500 cursor-pointer">
+                        </th>
                         <th class="px-2 py-4 w-12 text-center border-b border-gray-100">ที่</th>
                         <th class="px-4 py-4 border-b border-gray-100">ผู้เข้าสอบ</th>
                         <th class="px-2 py-4 text-center border-b border-gray-100 text-blue-500">วิทย์<br><span class="text-[10px] opacity-70">(Weight)</span></th>
@@ -2385,9 +2383,14 @@ function renderInterviewView(allStudents) {
                             }
                         </td>
                         <td class="px-4 py-4 text-center">
-                            <button onclick="showInterviewForm('${s.__backendId}', ${maxPractical}, '${targetProgramName}')" class="px-3 py-1.5 bg-lime-100 hover:bg-lime-200 text-lime-700 rounded-lg text-xs font-bold shadow-sm active:scale-95 transition-all">
-                                ให้คะแนน
-                            </button>
+                            <div class="flex justify-center gap-1">
+                                <button onclick="showInterviewForm('${s.__backendId}', ${maxPractical}, '${targetProgramName}')" class="p-2 bg-lime-100 hover:bg-lime-200 text-lime-700 rounded-lg shadow-sm" title="ให้คะแนน">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                </button>
+                                <button onclick="removeStudentFromProject('${s.__backendId}')" class="p-2 bg-red-50 hover:bg-red-100 text-red-500 rounded-lg shadow-sm" title="ลบรายชื่อ">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </div>
                         </td>
                     </tr>`).join('') : `<tr><td colspan="11" class="text-center py-12 text-gray-400">ไม่มีข้อมูล</td></tr>`}
                 </tbody>
