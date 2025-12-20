@@ -504,7 +504,9 @@ function updateBulkDeleteButton() {
 // --- ส่วนของ Modal เพิ่มชื่อแบบหลายคน ---
 
 function showAddStudentModal(targetProgram) {
-    addModalSelectedIds.clear(); 
+    addModalSelectedIds.clear(); // ล้างค่าเก่าทุกครั้งที่เปิดใหม่
+    
+    // ลบ Modal เก่าถ้าค้างอยู่
     const existing = document.getElementById('add-student-modal');
     if(existing) existing.remove();
 
@@ -539,12 +541,13 @@ function showAddStudentModal(targetProgram) {
                 </div>
             </div>
 
-            <div class="p-4 border-t border-gray-100 bg-white flex justify-between items-center">
+            <div class="p-4 border-t border-gray-100 bg-white flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
                 <span class="text-sm text-gray-500 font-bold" id="selected-count-text">เลือกแล้ว 0 คน</span>
+                
                 <button onclick="confirmAddStudents('${targetProgram}')" id="btn-confirm-add" disabled 
-                    class="bg-lime-500 hover:bg-lime-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-all flex items-center gap-2">
+                    class="bg-lime-500 hover:bg-lime-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-all flex items-center gap-2 transform active:scale-95">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                    เพิ่มรายชื่อ
+                    ยืนยันเพิ่มรายชื่อ
                 </button>
             </div>
         </div>
@@ -560,30 +563,10 @@ function showAddStudentModal(targetProgram) {
     }, 100);
 }
 
-function toggleModalAddCheck(id) {
-    if(addModalSelectedIds.has(id)) {
-        addModalSelectedIds.delete(id);
-    } else {
-        addModalSelectedIds.add(id);
-    }
-    updateModalUI();
-}
-
-function updateModalUI() {
-    document.getElementById('selected-count-text').innerText = `เลือกแล้ว ${addModalSelectedIds.size} คน`;
-    const btn = document.getElementById('btn-confirm-add');
-    if(addModalSelectedIds.size > 0) {
-        btn.disabled = false;
-        btn.classList.remove('disabled:bg-gray-300');
-    } else {
-        btn.disabled = true;
-        btn.classList.add('disabled:bg-gray-300');
-    }
-}
-
+// 2. ฟังก์ชันค้นหาและสร้างรายการ (พร้อม Checkbox)
 function searchStudentToAdd(program) {
     const query = document.getElementById('search-student-add').value.toLowerCase().trim();
-    if(query.length < 2) return;
+    if(query.length < 2) return; // ต้องพิมพ์อย่างน้อย 2 ตัวอักษร
 
     const validGrades = adminTab === 'm1' ? ['p4','p5','p6','m1'] : ['m3','m4'];
     const candidates = studentsData.filter(s => 
@@ -592,32 +575,88 @@ function searchStudentToAdd(program) {
     );
 
     const listHtml = candidates.map(s => {
+        // ตรวจสอบว่าถูกเลือกไว้หรือยัง
         const isChecked = addModalSelectedIds.has(s.__backendId) ? 'checked' : '';
+        
         return `
-        <label class="bg-white p-3 rounded-xl border border-gray-100 mb-2 flex justify-between items-center shadow-sm hover:shadow-md transition-all cursor-pointer select-none">
+        <label class="bg-white p-3 rounded-xl border border-gray-100 mb-2 flex justify-between items-center shadow-sm hover:shadow-md transition-all cursor-pointer select-none group">
             <div class="flex items-center gap-3">
-                <input type="checkbox" class="w-5 h-5 rounded border-gray-300 text-lime-500 focus:ring-lime-500 modal-checkbox" 
-                    data-id="${s.__backendId}" ${isChecked} 
-                    onchange="toggleModalAddCheck('${s.__backendId}')">
+                <div class="relative flex items-center">
+                    <input type="checkbox" class="w-6 h-6 rounded-md border-2 border-gray-300 text-lime-500 focus:ring-lime-500 transition-all checked:bg-lime-500 checked:border-lime-500" 
+                        data-id="${s.__backendId}" ${isChecked} 
+                        onchange="toggleModalAddCheck('${s.__backendId}')">
+                </div>
                 <div>
-                    <div class="font-bold text-gray-800">${s.full_name}</div>
+                    <div class="font-bold text-gray-800 group-hover:text-lime-700 transition-colors">${s.full_name}</div>
                     <div class="text-xs text-gray-500 flex gap-2 mt-1">
-                        <span class="bg-gray-100 px-1.5 rounded">รหัส: ${s.exam_id}</span>
-                        <span class="text-gray-400">|</span>
+                        <span class="bg-gray-100 px-1.5 rounded text-gray-600 font-mono">${s.exam_id}</span>
+                        <span class="text-gray-300">|</span>
                         <span>${s.previous_school}</span>
                     </div>
                 </div>
             </div>
             <div class="text-right">
-                <div class="text-xs text-lime-600 font-bold">รวม(ดิบ): ${s.total_score}</div>
+                <div class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-0.5">คะแนนดิบ</div>
+                <div class="text-sm font-black text-lime-600 bg-lime-50 px-2 py-0.5 rounded-lg border border-lime-100">${s.total_score}</div>
             </div>
         </label>
         `;
     }).join('');
 
-    document.getElementById('search-results-list').innerHTML = listHtml || '<div class="text-center text-gray-400 py-8">ไม่พบข้อมูลที่ตรงกัน</div>';
+    document.getElementById('search-results-list').innerHTML = listHtml || '<div class="text-center text-gray-400 py-8 flex flex-col items-center"><svg class="w-8 h-8 mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>ไม่พบข้อมูลที่ตรงกัน</div>';
 }
 
+// 3. ฟังก์ชันจัดการการติ๊กถูก (Toggle)
+function toggleModalAddCheck(id) {
+    if(addModalSelectedIds.has(id)) {
+        addModalSelectedIds.delete(id);
+    } else {
+        addModalSelectedIds.add(id);
+    }
+    updateModalUI(); // อัปเดตปุ่มทันที
+}
+
+// 4. ฟังก์ชันอัปเดตสถานะปุ่ม (หัวใจสำคัญของการแก้ปัญหา)
+function updateModalUI() {
+    const count = addModalSelectedIds.size;
+    const label = document.getElementById('selected-count-text');
+    const btn = document.getElementById('btn-confirm-add');
+
+    if(label) label.innerText = `เลือกแล้ว ${count} คน`;
+
+    if(btn) {
+        if(count > 0) {
+            btn.disabled = false;
+            btn.classList.remove('disabled:bg-gray-300', 'disabled:cursor-not-allowed');
+            // เพิ่ม Animation เล็กน้อยเพื่อให้รู้ว่ากดได้
+            btn.classList.add('ring-2', 'ring-lime-200');
+        } else {
+            btn.disabled = true;
+            btn.classList.add('disabled:bg-gray-300', 'disabled:cursor-not-allowed');
+            btn.classList.remove('ring-2', 'ring-lime-200');
+        }
+    }
+}
+
+// 5. ฟังก์ชันยืนยันการเพิ่ม (กดปุ่มแล้วมาที่นี่)
+function confirmAddStudents(program) {
+    if(addModalSelectedIds.size === 0) return;
+    
+    // บันทึกลงตัวแปรหลัก
+    addModalSelectedIds.forEach(id => {
+        interviewOverrides[id] = program;
+    });
+    
+    saveOverridesToStorage(); // บันทึกลง LocalStorage
+    
+    closeAddStudentModal();
+    renderAdminDashboard(); // รีเฟรชหน้าจอหลัก
+    showAlert('สำเร็จ', `เพิ่มรายชื่อเข้าสู่โครงการ ${program} จำนวน ${addModalSelectedIds.size} คน เรียบร้อยแล้ว`);
+    
+    addModalSelectedIds.clear(); // ล้างค่า
+}
+
+// 6. ปิด Modal
 function closeAddStudentModal() {
     const el = document.getElementById('add-student-modal');
     if(el) el.remove();
