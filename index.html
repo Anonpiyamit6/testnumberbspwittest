@@ -420,18 +420,76 @@ const quotas = {
 
     // --- Global Variable: เก็บข้อมูลการย้ายรายชื่อ (Manual Overrides) ---
 // รูปแบบ: { 'backendId': 'ProgramName' } เช่น { 'user123': 'S&M', 'user456': 'REMOVED' }
-let interviewOverrides = {};
-let interviewCheckedIds = new Set(); // เก็บ ID ที่ติ๊กในหน้าตารางหลัก
-let addModalSelectedIds = new Set(); // เก็บ ID ที่ติ๊กใน Modal เพิ่มชื่อ
+let interviewOverrides = JSON.parse(localStorage.getItem('admission_interview_overrides')) || {};
 
-// ฟังก์ชัน Toggle Checkbox ในหน้าตารางหลัก (เลือกคนที่จะลบ)
+let interviewCheckedIds = new Set(); 
+let addModalSelectedIds = new Set(); 
+
+// ฟังก์ชันช่วยบันทึกลง Storage
+function saveOverridesToStorage() {
+    localStorage.setItem('admission_interview_overrides', JSON.stringify(interviewOverrides));
+}
+
+// ฟังก์ชันเพิ่มรายชื่อเข้าโครงการ (ทีละคน หรือจาก Modal)
+function addStudentToProject(id, program) {
+    interviewOverrides[id] = program;
+    saveOverridesToStorage(); // บันทึก
+    
+    // ถ้ามาจากหน้า Modal ปิดด้วย
+    const modal = document.getElementById('add-student-modal');
+    if(modal) closeAddStudentModal();
+
+    renderAdminDashboard(); 
+    showAlert('สำเร็จ', `เพิ่มรายชื่อเข้าสู่โครงการ ${program} เรียบร้อยแล้ว`);
+}
+
+// ฟังก์ชันยืนยันเพิ่มหลายคน (จาก Modal)
+function confirmAddStudents(program) {
+    if(addModalSelectedIds.size === 0) return;
+    
+    addModalSelectedIds.forEach(id => {
+        interviewOverrides[id] = program;
+    });
+    
+    saveOverridesToStorage(); // บันทึก
+    
+    closeAddStudentModal();
+    renderAdminDashboard();
+    showAlert('สำเร็จ', `เพิ่มรายชื่อ ${addModalSelectedIds.size} คน เรียบร้อยแล้ว`);
+    addModalSelectedIds.clear();
+}
+
+// ฟังก์ชันลบรายชื่อออกจากโครงการ (รายคน)
+function removeStudentFromProject(id) {
+    if(confirm('ต้องการลบรายชื่อนี้ออกจากโครงการใช่หรือไม่?')) {
+        interviewOverrides[id] = 'REMOVED'; 
+        saveOverridesToStorage(); // บันทึก
+        renderAdminDashboard();
+    }
+}
+
+// ฟังก์ชันลบรายชื่อหลายคน (Bulk Delete)
+function deleteSelectedInterviews() {
+    if (interviewCheckedIds.size === 0) return;
+    if (confirm(`คุณต้องการลบรายชื่อผู้เข้าสอบจำนวน ${interviewCheckedIds.size} คน ออกจากโครงการใช่หรือไม่?`)) {
+        interviewCheckedIds.forEach(id => {
+            interviewOverrides[id] = 'REMOVED';
+        });
+        saveOverridesToStorage(); // บันทึก
+        
+        interviewCheckedIds.clear();
+        renderAdminDashboard();
+        showAlert('สำเร็จ', 'ลบรายชื่อเรียบร้อยแล้ว');
+    }
+}
+
+// ฟังก์ชัน Toggle Checkbox ในหน้าตารางหลัก
 function toggleInterviewCheck(id) {
     if (interviewCheckedIds.has(id)) {
         interviewCheckedIds.delete(id);
     } else {
         interviewCheckedIds.add(id);
     }
-    // อัปเดตปุ่มลบโดยไม่ต้อง Re-render ทั้งหน้าเพื่อความลื่นไหล
     updateBulkDeleteButton();
 }
 
@@ -447,23 +505,10 @@ function updateBulkDeleteButton() {
     }
 }
 
-// ฟังก์ชันลบหลายคน (Bulk Delete)
-function deleteSelectedInterviews() {
-    if (interviewCheckedIds.size === 0) return;
-    if (confirm(`คุณต้องการลบรายชื่อผู้เข้าสอบจำนวน ${interviewCheckedIds.size} คน ออกจากโครงการใช่หรือไม่?`)) {
-        interviewCheckedIds.forEach(id => {
-            interviewOverrides[id] = 'REMOVED';
-        });
-        interviewCheckedIds.clear();
-        renderAdminDashboard();
-        showAlert('สำเร็จ', 'ลบรายชื่อเรียบร้อยแล้ว');
-    }
-}
-
 // --- ส่วนของ Modal เพิ่มชื่อแบบหลายคน ---
 
 function showAddStudentModal(targetProgram) {
-    addModalSelectedIds.clear(); // ล้างค่าเก่า
+    addModalSelectedIds.clear(); 
     const existing = document.getElementById('add-student-modal');
     if(existing) existing.remove();
 
@@ -519,7 +564,6 @@ function showAddStudentModal(targetProgram) {
     }, 100);
 }
 
-// Toggle Check ใน Modal
 function toggleModalAddCheck(id) {
     if(addModalSelectedIds.has(id)) {
         addModalSelectedIds.delete(id);
@@ -576,19 +620,6 @@ function searchStudentToAdd(program) {
     }).join('');
 
     document.getElementById('search-results-list').innerHTML = listHtml || '<div class="text-center text-gray-400 py-8">ไม่พบข้อมูลที่ตรงกัน</div>';
-}
-
-function confirmAddStudents(program) {
-    if(addModalSelectedIds.size === 0) return;
-    
-    addModalSelectedIds.forEach(id => {
-        interviewOverrides[id] = program;
-    });
-    
-    closeAddStudentModal();
-    renderAdminDashboard();
-    showAlert('สำเร็จ', `เพิ่มรายชื่อ ${addModalSelectedIds.size} คน เรียบร้อยแล้ว`);
-    addModalSelectedIds.clear();
 }
 
 function closeAddStudentModal() {
