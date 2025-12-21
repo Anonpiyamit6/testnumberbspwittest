@@ -2614,12 +2614,11 @@ function exportInterviewToExcel() {
     const allocationResult = executeClearingHouse(activeData, quotas[adminTab]);
     const targetProgramName = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
     
-    // ตั้งค่าคะแนนและโควตา (เหมือนหน้าจอ)
     const practicalQuota = 40; 
     const maxPractical = (targetProgramName === 'S&M') ? 20 : 100;
     const maxTotal = 100 + maxPractical;
 
-    // Helper คำนวณ Weight (เหมือนหน้าจอ)
+    // Helper คำนวณ Weight
     const getSubScore = (score, subject, program) => {
         const s = parseFloat(score) || 0;
         const p = program.toLowerCase();
@@ -2639,22 +2638,18 @@ function exportInterviewToExcel() {
         return s;
     };
 
-    // 2. กรองรายชื่อ (ใช้ Logic เดียวกับหน้าจอ: เช็ค Overrides ก่อน)
+    // 2. กรองรายชื่อ (ใช้ Logic Overrides)
     let interviewList = activeData.filter(s => {
         const id = s.__backendId;
-        
-        // A. ถ้ามีการบังคับย้าย (Manual Override)
         if (interviewOverrides[id]) {
             if (interviewOverrides[id] === targetProgramName) return true;
-            return false; // ถ้าเป็น REMOVED หรือโปรแกรมอื่น
+            return false;
         }
-
-        // B. ถ้าไม่มีการบังคับ -> ใช้ผลจาก Algo ปกติ
         const result = allocationResult[id];
         return result && result.program === targetProgramName;
     });
 
-    // 3. คำนวณคะแนนใหม่ (Recalculate)
+    // 3. คำนวณคะแนนใหม่
     interviewList = interviewList.map(s => {
         const w_sci = getSubScore(s.science_score, 'sci', targetProgramName);
         const w_math = getSubScore(s.math_score, 'math', targetProgramName);
@@ -2669,9 +2664,9 @@ function exportInterviewToExcel() {
             practical_score: practical, 
             grand_total: written + practical
         };
-    }).sort((a, b) => b.grand_total - a.grand_total); // เรียงตามคะแนนรวมสุทธิ
+    }).sort((a, b) => b.grand_total - a.grand_total);
 
-    // 4. คำนวณสถานะ (ตัวจริง/สำรอง)
+    // 4. คำนวณสถานะ
     let currentRank = 1;
     for (let i = 0; i < interviewList.length; i++) {
         if (i > 0) {
@@ -2695,11 +2690,12 @@ function exportInterviewToExcel() {
 
     if(interviewList.length === 0) return showAlert('แจ้งเตือน', 'ไม่มีข้อมูล');
 
-    // 5. สร้าง Excel Rows
+    // 5. สร้าง Excel Rows (เพิ่มคอลัมน์โรงเรียน)
     const excelRows = interviewList.map(s => ({
         'ลำดับที่': s.final_rank,
         'รหัสสอบ': s.exam_id,
         'ชื่อ-สกุล': s.full_name,
+        'โรงเรียน': s.previous_school || '-', // 🔥 เพิ่มตรงนี้ครับ 🔥
         'วิทย์ (Weight)': s.w_sci.toFixed(2),
         'คณิต (Weight)': s.w_math.toFixed(2),
         'อังกฤษ (Weight)': s.w_eng.toFixed(2),
