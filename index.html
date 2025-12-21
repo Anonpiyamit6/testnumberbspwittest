@@ -2601,30 +2601,25 @@ function savePracticalScores() {
 }
     // --- ฟังก์ชันส่งออกรายงานคะแนนปฏิบัติเป็น Word (แบบละเอียด) ---
 function exportInterviewToExcel() {
-    // 1. เตรียมข้อมูล (แยก ม.1 / ม.4)
+    // 1. เตรียมข้อมูลพื้นฐาน (เหมือนหน้าจอ)
     const m1 = studentsData.filter(s => ['p4','p5','p6','m1'].includes(s.grade_level));
     const m4 = studentsData.filter(s => ['m3','m4'].includes(s.grade_level));
     let activeData = adminTab === 'm1' ? m1 : m4;
 
-    // 2. ตรวจสอบ Tab ปัจจุบัน (ถ้าอยู่ที่ All ให้เลือกโครงการแรกเป็น Default)
     const availablePrograms = adminTab === 'm1' ? ['sm', 'gate', 'eis'] : ['sme', 'gate'];
-    let currentTab = rankingTab;
-    if (currentTab === 'all' || currentTab === 'filtered' || !availablePrograms.includes(currentTab)) {
-        currentTab = availablePrograms[0];
+    if (rankingTab === 'all' || rankingTab === 'filtered' || !availablePrograms.includes(rankingTab)) {
+        rankingTab = availablePrograms[0];
     }
 
-    // 3. ประมวลผล Clearing House
     const allocationResult = executeClearingHouse(activeData, quotas[adminTab]);
-
-    // 4. ตั้งค่าตัวแปรตามโครงการ
-    const targetProgramName = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[currentTab];
-    const practicalQuota = 40; // ตัดตัวจริง 40 คน
+    const targetProgramName = { 'sm': 'S&M', 'gate': 'GATE', 'eis': 'EIS', 'sme': 'SME' }[rankingTab];
     
-    // กำหนดคะแนนเต็ม (S&M=20, อื่นๆ=100)
+    // ตั้งค่าคะแนนและโควตา (เหมือนหน้าจอ)
+    const practicalQuota = 40; 
     const maxPractical = (targetProgramName === 'S&M') ? 20 : 100;
     const maxTotal = 100 + maxPractical;
 
-    // Helper: คำนวณคะแนนถ่วงน้ำหนัก (Copy มาเพื่อให้ทำงานใน Scope นี้ได้)
+    // Helper คำนวณ Weight (เหมือนหน้าจอ)
     const getSubScore = (score, subject, program) => {
         const s = parseFloat(score) || 0;
         const p = program.toLowerCase();
@@ -2644,28 +2639,39 @@ function exportInterviewToExcel() {
         return s;
     };
 
-    // 5. กรองรายชื่อเฉพาะคนที่ติดโครงการนี้
+    // 2. กรองรายชื่อ (ใช้ Logic เดียวกับหน้าจอ: เช็ค Overrides ก่อน)
     let interviewList = activeData.filter(s => {
-        const result = allocationResult[s.__backendId];
+        const id = s.__backendId;
+        
+        // A. ถ้ามีการบังคับย้าย (Manual Override)
+        if (interviewOverrides[id]) {
+            if (interviewOverrides[id] === targetProgramName) return true;
+            return false; // ถ้าเป็น REMOVED หรือโปรแกรมอื่น
+        }
+
+        // B. ถ้าไม่มีการบังคับ -> ใช้ผลจาก Algo ปกติ
+        const result = allocationResult[id];
         return result && result.program === targetProgramName;
     });
 
-    // 6. คำนวณคะแนน
+    // 3. คำนวณคะแนนใหม่ (Recalculate)
     interviewList = interviewList.map(s => {
         const w_sci = getSubScore(s.science_score, 'sci', targetProgramName);
         const w_math = getSubScore(s.math_score, 'math', targetProgramName);
         const w_eng = getSubScore(s.english_score, 'eng', targetProgramName);
+        
         const written = w_sci + w_math + w_eng;
         const practical = parseFloat(s.practical_score) || 0;
+        
         return { 
             ...s, w_sci, w_math, w_eng, 
             written_score: written,
             practical_score: practical, 
-            grand_total: written + practical 
+            grand_total: written + practical
         };
-    }).sort((a, b) => b.grand_total - a.grand_total);
+    }).sort((a, b) => b.grand_total - a.grand_total); // เรียงตามคะแนนรวมสุทธิ
 
-    // 7. คำนวณสถานะ ตัวจริง/สำรอง
+    // 4. คำนวณสถานะ (ตัวจริง/สำรอง)
     let currentRank = 1;
     for (let i = 0; i < interviewList.length; i++) {
         if (i > 0) {
@@ -2687,9 +2693,9 @@ function exportInterviewToExcel() {
         }
     }
 
-    if(interviewList.length === 0) return showAlert('แจ้งเตือน', 'ไม่มีข้อมูลในหมวดนี้');
+    if(interviewList.length === 0) return showAlert('แจ้งเตือน', 'ไม่มีข้อมูล');
 
-    // 8. สร้างข้อมูล Excel
+    // 5. สร้าง Excel Rows
     const excelRows = interviewList.map(s => ({
         'ลำดับที่': s.final_rank,
         'รหัสสอบ': s.exam_id,
@@ -2703,7 +2709,6 @@ function exportInterviewToExcel() {
         'ผลการคัดเลือก': s.final_status
     }));
 
-    // 9. สร้างไฟล์และดาวน์โหลด
     const ws = XLSX.utils.json_to_sheet(excelRows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Scores");
