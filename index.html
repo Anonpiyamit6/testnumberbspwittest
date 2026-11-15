@@ -796,7 +796,7 @@ function executeBulkDelete() { if(checkedIds.size === 0) return; showConfirm('�
 function renderLogin() {
 const config = window.elementSdk?.config || defaultConfig;
 document.getElementById('app').innerHTML = `
-<div class="h-full w-full bg-[#B2B2B2] flex flex-col items-center justify-center p-4 overflow-auto">
+<div class="h-full w-full bg-gradient-to-br from-[#FEFBEA] to-[#FCEABB] flex flex-col items-center justify-center p-4 overflow-auto">
 
 <div class="w-full max-w-md bg-white rounded-[2rem] shadow-xl p-8 relative overflow-hidden shrink-0">
 
@@ -840,7 +840,7 @@ text-[13px] min-[360px]:text-[14.5px] min-[390px]:text-[16px] sm:text-xl sm:mx-0
 </div>
 
 <div class="mt-6 text-center animate-pulse">
-<p class="text-xs text-white font-medium drop-shadow-md bg-black/10 px-3 py-1 rounded-full">พัฒนาระบบโดย ครูอานนท์ เมืองแก้ว</p>
+<p class="text-xs text-gray-500 font-medium drop-shadow-sm bg-white/50 px-3 py-1 rounded-full">พัฒนาระบบโดย ครูอานนท์ เมืองแก้ว</p>
 </div>
 
 </div>
@@ -877,7 +877,7 @@ function renderAdminDashboard() {
         
         <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 w-72 flex flex-col bg-white border-r border-gray-100 shadow-2xl transform -translate-x-full transition-transform duration-300 md:translate-x-0 md:static md:shadow-xl">
             <div class="h-20 flex items-center gap-3 px-6 border-b border-gray-50 shrink-0">
-                <img src="https://img5.pic.in.th/file/secure-sv1/-69-1112b7dae5160e09f.png" class="w-10 h-10 drop-shadow-sm">
+                <img src="https://img2.pic.in.th/pic/-69-1.png" class="w-10 h-10 object-contain drop-shadow-sm">
                 <div><h1 class="text-lg font-bold text-gray-800 leading-tight">ระบบรับสมัคร</h1><p class="text-xs text-lime-600 font-bold">Admin Panel</p></div>
                 <button onclick="toggleSidebar()" class="md:hidden ml-auto text-gray-400 hover:text-red-500"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
             </div>
@@ -910,7 +910,7 @@ function renderAdminDashboard() {
         <main class="flex-1 flex flex-col h-full overflow-hidden w-full relative">
             <header class="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-4 shrink-0 md:hidden z-20">
                 <div class="flex items-center gap-3">
-                    <img src="https://img5.pic.in.th/file/secure-sv1/-69-1112b7dae5160e09f.png" class="w-8 h-8">
+                    <img src="https://img2.pic.in.th/pic/-69-1.png" class="w-8 h-8 object-contain">
                     <span class="font-bold text-gray-700">Admin Panel</span>
                 </div>
                 <button onclick="toggleSidebar()" class="p-2 text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 active:scale-95 transition-transform"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg></button>
@@ -1538,7 +1538,7 @@ function renderStudentView() {
 
             <div class="bg-white rounded-[2rem] p-8 mb-4 md:mb-6 shadow-xl relative overflow-hidden border border-lime-100 text-center">
                 <div class="relative z-10 flex flex-col items-center">
-                    <img src="https://img5.pic.in.th/file/secure-sv1/-69-1112b7dae5160e09f.png" alt="Logo" class="w-56 h-auto mb-6 drop-shadow-md hover:scale-105 transition-transform duration-500">
+                    <img src="https://img2.pic.in.th/pic/-69-1.png" alt="Logo" class="w-56 h-auto mb-6 drop-shadow-md hover:scale-105 transition-transform duration-500">
                     <h1 class="text-xl md:text-2xl font-bold text-lime-900 leading-tight mb-2">
                         ประกาศผลคะแนนการสอบแข่งขันทักษะวิชาการเพชรราชพฤกษ์
                     </h1>
